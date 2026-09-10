@@ -1,0 +1,20 @@
+# Entornos
+backend/venv/
+backend/.env
+backend/.env.example
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Docker
+docker-compose.override.yml
+
+# Editor / SO
+.vscode/
+.idea/
+.DS_Store

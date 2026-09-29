@@ -2,7 +2,16 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.routers import auth, admin
+from app.modules.autenticacion import routes as auth
+from app.modules.coordinacion import routes as admin, portal_routes as coordination
+from app.modules.estudiantes import portal_routes as students
+from app.modules.compartido import routes as portal
+from app.modules.compartido import documents
+from botocore.exceptions import BotoCoreError, ClientError
+from fastapi.responses import JSONResponse
+from sqlalchemy.exc import IntegrityError
+import app.models  # noqa: F401 — el esquema se administra con Alembic
+
 
 app = FastAPI(title="Incubadora TecNM Saltillo — API")
 
@@ -16,6 +25,21 @@ app.add_middleware(
 
 app.include_router(auth.router)
 app.include_router(admin.router)
+app.include_router(portal.router)
+app.include_router(coordination.router)
+app.include_router(students.router)
+app.include_router(documents.router)
+
+
+@app.exception_handler(BotoCoreError)
+@app.exception_handler(ClientError)
+async def storage_error(request, exc):
+    return JSONResponse(status_code=503, content={"detail": "El almacenamiento de documentos no está disponible. Inténtalo de nuevo."})
+
+
+@app.exception_handler(IntegrityError)
+async def integrity_error(request, exc):
+    return JSONResponse(status_code=409, content={"detail": "El registro ya existe o tiene datos asociados. Actualiza la página e inténtalo de nuevo."})
 
 
 @app.get("/health")

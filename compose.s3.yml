@@ -1,0 +1,14 @@
+# Start with: docker compose -f docker-compose.yml -f compose.s3.yml up -d backend
+services:
+  backend:
+    environment:
+      DOCUMENT_STORAGE: s3
+      AWS_S3_BUCKET: incubadora-tec-documentos-940827433988-us-east-1
+      AWS_REGION: us-east-1
+      AWS_PROFILE: incubadora-documentos
+      AWS_CONFIG_FILE: /app/aws-documentos-config
+      AWS_EC2_METADATA_DISABLED: "true"
+      # Override any legacy keys in backend/.env; use only the scoped session.
+      AWS_ACCESS_KEY_ID: ""
+      AWS_SECRET_ACCESS_KEY: ""
+      AWS_SESSION_TOKEN: ""

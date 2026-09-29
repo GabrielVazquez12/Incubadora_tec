@@ -18,4 +18,6 @@ def get_db():
     try:
         yield db
     finally:
+        if db.in_transaction():
+            db.rollback()
         db.close()

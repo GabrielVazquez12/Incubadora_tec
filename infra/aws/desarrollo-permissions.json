@@ -1,0 +1,23 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AssumeDocumentRole",
+      "Effect": "Allow",
+      "Action": "sts:AssumeRole",
+      "Resource": "arn:aws:iam::940827433988:role/incubadora-tec-documentos-local"
+    },
+    {
+      "Sid": "ChangeOwnPassword",
+      "Effect": "Allow",
+      "Action": "iam:ChangePassword",
+      "Resource": "arn:aws:iam::940827433988:user/incubadora-tec-desarrollo"
+    },
+    {
+      "Sid": "ReadPasswordRequirements",
+      "Effect": "Allow",
+      "Action": "iam:GetAccountPasswordPolicy",
+      "Resource": "*"
+    }
+  ]
+}

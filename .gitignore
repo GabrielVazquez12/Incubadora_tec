@@ -1,6 +1,8 @@
 # Entornos
+.local/
 backend/venv/
 backend/.env
+backend/.aws-documentos-session.json
 backend/.env.example
 frontend/node_modules/
 frontend/dist/

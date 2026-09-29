@@ -123,6 +123,7 @@ export function PortalProvider({ children }) {
     return (await perform(() => api.post(`/portal/projects/${project}/members`, { correo }))) !== null;
   }
   async function downloadFile(file) {
+    if (preview && !file.data) { notify('La descarga está disponible en el portal con sesión iniciada.'); return; }
     if (preview && file.data) {
       const link = document.createElement('a'); link.href = file.data; link.download = file.name; link.click(); return;
     }
@@ -139,6 +140,16 @@ export function PortalProvider({ children }) {
       return true;
     }
     return (await perform(() => api.post(`/portal/initial-registrations/${id}/review`, { estatus, estatus_anterior, observaciones }))) !== null;
+  }
+  async function uploadDocument(projectId, file, replaces = null) {
+    if (preview) { notify('La carga de documentos está disponible en el portal con sesión iniciada.'); return false; }
+    const body = new FormData(); body.append('file', file);
+    if (replaces) body.append('reemplaza_id', replaces);
+    return (await perform(() => api.post(`/portal/projects/${projectId}/documents`, body))) !== null;
+  }
+  async function reviewDocument(id, estatus, estatus_anterior, observaciones) {
+    if (preview) { notify('La revisión de documentos está disponible en el portal con sesión iniciada.'); return false; }
+    return (await perform(() => api.post(`/portal/documents/${id}/review`, { estatus, estatus_anterior, observaciones }))) !== null;
   }
   async function downloadRegistration(registration) {
     if (preview) { notify('La descarga está disponible para registros reales aprobados.'); return false; }
@@ -167,6 +178,6 @@ export function PortalProvider({ children }) {
     } catch { setError('No se pudo descargar el anexo.'); }
   }
   return <Context.Provider value={{ data, user, preview, notice, notify, error, busy, loading: loadedFor !== identity,
-    paymentsMode, update, remove, register, addType, addMember, downloadFile, downloadRegistration, downloadRegistrationFile, reviewRegistration, refresh }}>{children}</Context.Provider>;
+    paymentsMode, update, remove, register, addType, addMember, downloadFile, downloadRegistration, downloadRegistrationFile, reviewRegistration, uploadDocument, reviewDocument, refresh }}>{children}</Context.Provider>;
 }
 export const usePortal = () => useContext(Context);

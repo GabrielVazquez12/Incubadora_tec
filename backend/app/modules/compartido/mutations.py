@@ -1,5 +1,8 @@
 
 from sqlalchemy import select
+import base64
+from app.config import settings
+from app.document_storage import store_bytes
 from app.models import Usuario, RolUsuario, Proyecto, Horario, Tutoria, Solicitud
 from app.initial_registration import validate_data, merge_files
 from app.modules.compartido.registration_metadata import registration_metadata
@@ -37,6 +40,14 @@ def save_initial_registrations(db, user, key, values, row, payload, new, collect
         complete = values["estatus"] == "Pendiente"
         datos = validate_data({**values["datos"], **registration_metadata(db, row)}, complete)
         archivos = merge_files(datos, row.archivos if row else {}, values["archivos"], complete)
+        if settings.document_storage == "s3":
+            # Existing local annexes migrate on the next successful applicant save.
+            for file_key, item in archivos.items():
+                if "data" in item:
+                    content = base64.b64decode(item["data"])
+                    stored = store_bytes(db, content, item["tipo"], f"registrations/{key}")
+                    archivos[file_key] = {k: v for k, v in item.items() if k != "data"}
+                    archivos[file_key].update(bucket=stored["bucket"], key=stored["key"], size=len(content))
         next_status = "Pendiente" if complete else row.estatus if row else "Borrador"
         trail = list(row.historial or []) if row else []
         if not row or next_status != row.estatus:

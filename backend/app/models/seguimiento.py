@@ -1,7 +1,7 @@
 """Participación y seguimiento de los proyectos de la incubadora."""
 import uuid
 
-from sqlalchemy import Column, DateTime, ForeignKey, String, Text, UniqueConstraint, LargeBinary, func
+from sqlalchemy import Column, DateTime, ForeignKey, String, Text, UniqueConstraint, LargeBinary, func, Boolean, JSON
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -31,6 +31,11 @@ class Documento(Base):
     tipo = Column(String, nullable=False)
     bucket = Column(String, nullable=False)
     clave_archivo = Column(String, nullable=False)
+    estatus = Column(String, nullable=False, default="Pendiente", server_default="Pendiente")
+    observaciones = Column(Text, nullable=False, default="", server_default="")
+    historial = Column(JSON, nullable=False, default=list, server_default="[]")
+    vigente = Column(Boolean, nullable=False, default=True, server_default="true")
+    reemplaza_id = Column(UUID(as_uuid=True), ForeignKey("documentos.id"), nullable=True)
     creado_en = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
     proyecto = relationship("Proyecto", back_populates="documentos")

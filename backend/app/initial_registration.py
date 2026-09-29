@@ -124,8 +124,8 @@ def merge_files(data, existing, changes, complete=False):
         types = {"pdf": (b"%PDF-", "application/pdf"), "png": (b"\x89PNG\r\n\x1a\n", "image/png"), "jpg": (b"\xff\xd8\xff", "image/jpeg"), "jpeg": (b"\xff\xd8\xff", "image/jpeg")}
         if extension not in types or not content.startswith(types[extension][0]) or not 0 < len(content) <= 2 * 1024 * 1024:
             invalid("Adjunta un PDF, PNG o JPG válido de hasta 2 MB.")
-        result[key] = dict(name=name, data=base64.b64encode(content).decode(), tipo=types[extension][1])
-    if sum(len(item["data"]) for item in result.values()) > 28_000_000:
+        result[key] = dict(name=name, data=base64.b64encode(content).decode(), tipo=types[extension][1], size=len(content))
+    if sum(item.get("size", len(item.get("data", "")) * 3 // 4) for item in result.values()) > 20 * 1024 * 1024:
         invalid("Los anexos del registro no deben superar 20 MB en conjunto.")
     if complete and allowed - result.keys():
         invalid("Adjunta los requisitos de ingreso del responsable y de cada socio.")

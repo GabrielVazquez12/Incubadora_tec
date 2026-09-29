@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings
+from typing import Literal
 
 
 class Settings(BaseSettings):
@@ -20,6 +21,8 @@ class Settings(BaseSettings):
     aws_secret_access_key: str = ""
     aws_s3_bucket: str = ""
     aws_region: str = "us-east-1"
+    aws_session_token: str = ""
+    document_storage: Literal["local", "s3"] = "local"
 
     # Pagos
     stripe_secret_key: str = ""

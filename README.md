@@ -205,12 +205,15 @@ VITE_API_URL=http://localhost:8000
 - [x] Modelo de datos y migraciones
 - [x] Autenticación y autorización por rol
 - [x] Gestión de usuarios, proyectos y seguimiento con PostgreSQL
-- [ ] Subida de documentos a S3
+- [x] Módulo de documentos con revisión e integración S3 configurable (validación en AWS pendiente)
 - [x] Reportes exportables a CSV para Excel
 - [ ] Generación de constancias/documentos PDF
 - [x] Dashboard y reportes para coordinadoras
 - [ ] Integración de pagos (sandbox)
 - [ ] Deploy en AWS
+
+Consulta [documentos y anexos privados](docs/documentos.md) para configurar
+S3, aplicar la migración y usar el flujo de revisión y correcciones.
 
 ## 📄 Licencia
 

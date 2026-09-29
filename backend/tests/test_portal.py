@@ -34,7 +34,7 @@ class PortalTest(unittest.TestCase):
             connection.execute(text(f'CREATE DATABASE "{cls.name}"'))
         cls.addClassCleanup(cls.drop_database)
         cls.url = make_url(settings.database_url).set(database=cls.name)
-        cls.env = dict(os.environ, DATABASE_URL=cls.url.render_as_string(hide_password=False), DEMO_PAYMENTS_ENABLED="true")
+        cls.env = dict(os.environ, DATABASE_URL=cls.url.render_as_string(hide_password=False), DEMO_PAYMENTS_ENABLED="true", DOCUMENT_STORAGE="local")
         subprocess.run(["alembic", "upgrade", "head"], env=cls.env, check=True, capture_output=True)
         engine = create_engine(cls.url)
         with Session(engine) as db:
@@ -91,6 +91,72 @@ class PortalTest(unittest.TestCase):
 
     def login(self, email):
         return self.request("POST", "/auth/login", {"correo": email, "password": "TestPass2026!"})["access_token"]
+
+    def upload_document(self, project, token, content=b"%PDF-1.4 document", name="plan.pdf", replaces=None, status=201):
+        boundary = "upload-" + uuid4().hex
+        body = b""
+        if replaces:
+            body += (f'--{boundary}\r\nContent-Disposition: form-data; name="reemplaza_id"\r\n\r\n{replaces}\r\n').encode()
+        body += (f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="{name}"\r\nContent-Type: application/octet-stream\r\n\r\n').encode() + content
+        body += f'\r\n--{boundary}--\r\n'.encode()
+        req = Request(self.base + f"/portal/projects/{project}/documents", data=body,
+                      headers={"Authorization": "Bearer " + token, "Content-Type": f"multipart/form-data; boundary={boundary}"})
+        try:
+            response = urlopen(req, timeout=20)
+        except HTTPError as error:
+            response = error
+        result = response.read()
+        self.assertEqual(response.status, status, result)
+        return json.loads(result)
+
+    def test_documentos_revision_correcciones_y_permisos(self):
+        from app.models import Proyecto
+        owner = self.create_user("documents_owner")
+        self.create_user("documents_intruder")
+        self.create_user("documents_external", "externo")
+        token = self.login("documents_owner@example.com")
+        intruder = self.login("documents_intruder@example.com")
+        external = self.login("documents_external@example.com")
+        coordinator = self.login("admin@example.com")
+        engine = create_engine(self.url)
+        with Session(engine) as db:
+            project = Proyecto(nombre="Document review", usuario_id=UUID(owner["id"]))
+            db.add(project); db.commit(); pid = str(project.id)
+        engine.dispose()
+        self.upload_document(pid, intruder, status=403)
+        self.upload_document(pid, external, status=403)
+        self.upload_document(pid, token, content=b"wrong content", status=422)
+        self.upload_document(pid, token, content=b"PK not a Word file", name="fake.docx", status=422)
+        self.upload_document(pid, token, content=b"%PDF-" + b"x" * (5 * 1024 * 1024), status=422)
+        first = self.upload_document(pid, token)["id"]
+        download = f"/portal/documents/{first}/download"
+        self.request("GET", download, status=401)
+        self.request("GET", download, token=intruder, status=403)
+        self.request("GET", download, token=external, status=403)
+        self.assertEqual(self.request("GET", download, token=coordinator, binary=True), b"%PDF-1.4 document")
+        review = f"/portal/documents/{first}/review"
+        change = {"estatus": "Correcciones solicitadas", "estatus_anterior": "Pendiente", "observaciones": "Adjunta la versión firmada."}
+        self.request("POST", review, change, token, status=403)
+        self.request("POST", review, {**change, "observaciones": " "}, coordinator, status=422)
+        self.upload_document(pid, token, replaces=first, status=409)
+        self.request("POST", review, change, coordinator)
+        self.request("POST", review, change, coordinator, status=409)
+        corrected = self.upload_document(pid, token, content=b"%PDF-1.4 corrected", replaces=first)["id"]
+        self.upload_document(pid, token, replaces=first, status=409)
+        approval = {"estatus": "Aprobado", "estatus_anterior": "Pendiente", "observaciones": "Firma verificada."}
+        self.request("POST", f"/portal/documents/{corrected}/review", approval, coordinator)
+        self.upload_document(pid, token, replaces=corrected, status=409)
+        docs = self.request("GET", "/portal/state", token=token)["data"]["documents"]
+        old = next(d for d in docs if d["id"] == first)
+        new = next(d for d in docs if d["id"] == corrected)
+        self.assertFalse(old["vigente"])
+        self.assertEqual(new["reemplaza_id"], first)
+        self.assertEqual(new["estatus"], "Aprobado")
+        self.assertEqual(len(new["historial"]), 2)
+        self.assertNotIn("bucket", new)
+        self.assertNotIn("contenido", new)
+        self.assertEqual(self.request("GET", download, token=token, binary=True), b"%PDF-1.4 document")
+        self.assertEqual(self.request("GET", "/portal/state", token=intruder)["data"]["documents"], [])
 
     def create_user(self, alias, role="estudiante"):
         return self.request("POST", "/auth/registro", {"nombre": alias, "correo": f"{alias}@example.com", "password": "TestPass2026!", "rol": role}, status=201)

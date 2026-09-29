@@ -142,28 +142,13 @@ def save_file(db, project, user, file):
             fail("El adjunto no pertenece a este proyecto.")
         return
     if file:
-        name = file.get("name", "")
-        if not isinstance(name, str) or len(name) > 240 or name.lower().split(".")[-1] not in ("pdf", "doc", "docx"):
-            fail("Adjunta un PDF, DOC o DOCX de hasta 5 MB.")
+        from app.document_validation import decode_document
+        from app.modules.compartido.documents import create_document
         try:
-            raw = file["data"]
-            if not isinstance(raw, str) or len(raw) > 7 * 1024 * 1024:
-                fail("El archivo supera 5 MB.")
-            content = base64.b64decode(raw.split(",", 1)[1], validate=True)
-        except (KeyError, IndexError, ValueError, binascii.Error):
-            fail("Archivo no válido.")
-        if not content or len(content) > 5 * 1024 * 1024:
-            fail("El archivo está vacío o supera 5 MB.")
-        ext = name.lower().split(".")[-1]
-        signatures = {"pdf": b"%PDF-", "doc": b"\xd0\xcf\x11\xe0", "docx": b"PK"}
-        if not content.startswith(signatures[ext]):
-            fail("El contenido no corresponde al formato indicado.")
-    for previous in db.scalars(select(Documento).where(Documento.proyecto_id == project.id, Documento.bucket == "postgres-local")):
-        db.delete(previous)
-    if file:
-        db.add(Documento(proyecto_id=project.id, subido_por_id=user.id, nombre=name,
-            tipo={"pdf": "application/pdf", "doc": "application/msword", "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"}[ext],
-            bucket="postgres-local", clave_archivo=str(uuid4()), contenido=content))
+            content, media_type = decode_document(file)
+        except HTTPException as error:
+            fail(error.detail)  # Preserve the legacy project endpoint's contract.
+        create_document(db, project, user, file["name"], content, media_type)
 
 
 

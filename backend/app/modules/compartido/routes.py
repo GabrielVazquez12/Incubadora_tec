@@ -8,6 +8,8 @@ from sqlalchemy import select, func, or_
 from sqlalchemy.orm import Session, defer
 from app.auth.security import get_current_user
 from app.config import settings
+from app.document_storage import read_bytes
+from app.modules.compartido.documents import download_response
 from app.database import get_db
 from app.models import (
     Usuario,
@@ -78,7 +80,7 @@ def state(db: Session = Depends(get_db), user: Usuario = Depends(get_current_use
     members = db.scalars(select(IntegranteProyecto).where(IntegranteProyecto.proyecto_id.in_(pids))).all()
     documents = db.scalars(select(Documento).options(defer(Documento.contenido)).where(Documento.proyecto_id.in_(pids))).all()
     # Solo incluir metadatos; los archivos se descargan con autorización independiente.
-    file_ids = set(db.scalars(select(Documento.id).where(Documento.proyecto_id.in_(pids), Documento.contenido.is_not(None))).all())
+    file_ids = set(db.scalars(select(Documento.id).where(Documento.proyecto_id.in_(pids), or_(Documento.contenido.is_not(None), Documento.clave_archivo.startswith("expedientes/")))).all())
     users_query = select(Usuario)
     visible = {user.id, *(p.usuario_id for p in projects), *(m.usuario_id for m in members)}
     if not admin(user):
@@ -92,10 +94,10 @@ def state(db: Session = Depends(get_db), user: Usuario = Depends(get_current_use
     result = {"users": users, "projects": [], "roles": ROLES,
               "eventTypes": list(db.scalars(select(TipoEvento.nombre).order_by(TipoEvento.nombre))),
               "members": [serialized(m) for m in members],
-              "documents": [{**serialized(d), "available": d.id in file_ids} for d in documents],
+              "documents": [{**{k: v for k, v in serialized(d).items() if k not in ("bucket", "clave_archivo")}, "available": d.id in file_ids} for d in documents],
               "history": [serialized(h) for h in db.scalars(select(HistorialEstatus).where(HistorialEstatus.proyecto_id.in_(pids)).order_by(HistorialEstatus.creado_en))]}
     for p in projects:
-        files = [d for d in documents if d.proyecto_id == p.id and d.id in file_ids]
+        files = [d for d in documents if d.proyecto_id == p.id and d.id in file_ids and d.vigente]
         result["projects"].append({**serialized(p), "owner": str(p.usuario_id),
             "fecha": (p.creado_en.date() if p.creado_en else today()).isoformat(),
             "file": {"id": str(files[0].id), "name": files[0].nombre} if files else None})
@@ -211,10 +213,9 @@ def delete(collection: str, key: UUID, db: Session = Depends(get_db), user: Usua
 def document(key: UUID, db: Session = Depends(get_db), user: Usuario = Depends(get_current_user)):
     doc = record(db, Documento, key)
     project_access(db, user, doc.proyecto_id)
-    if doc.contenido is None:
+    if doc.contenido is None and not doc.clave_archivo.startswith("expedientes/"):
         fail("Este registro de ejemplo no tiene archivo adjunto.", 404)
-    return Response(content=doc.contenido, media_type=doc.tipo,
-                    headers={"Content-Disposition": "attachment", "X-Content-Type-Options": "nosniff"})
+    return download_response(read_bytes(doc.bucket, doc.clave_archivo, doc.contenido), doc.tipo, doc.nombre)
 
 
 
@@ -226,8 +227,8 @@ def registration_file(key: UUID, file_key: str, db: Session = Depends(get_db), u
     item = row.archivos.get(file_key)
     if not item:
         fail("Anexo no encontrado.", 404)
-    return Response(base64.b64decode(item["data"]), media_type=item["tipo"],
-        headers={"Content-Disposition": "attachment", "X-Content-Type-Options": "nosniff"})
+    content = base64.b64decode(item["data"]) if "data" in item else read_bytes(item["bucket"], item["key"])
+    return download_response(content, item["tipo"], item["name"])
 
 
 @router.get("/initial-registrations/{key}/download")

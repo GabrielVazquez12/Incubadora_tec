@@ -2,7 +2,8 @@ param(
     [string]$Profile = 'incubadora-deploy',
     [string]$Region = 'us-east-1',
     [string]$FoundationStack = 'incubadora-foundation',
-    [string]$ApplicationStack = 'incubadora-application'
+    [string]$ApplicationStack = 'incubadora-application',
+    [switch]$PortalFlow
 )
 $ErrorActionPreference = 'Stop'
 Set-Location (Split-Path -Parent $PSScriptRoot)
@@ -62,6 +63,16 @@ finally:
             db.commit()
     print('Temporary verification account removed', flush=True)
 '@
+if ($PortalFlow) {
+    $scenario = [IO.File]::ReadAllBytes((Join-Path $PSScriptRoot 'verify-portal-aws.py'))
+    $buffer = [IO.MemoryStream]::new()
+    $gzip = [IO.Compression.GZipStream]::new($buffer, [IO.Compression.CompressionMode]::Compress, $true)
+    $gzip.Write($scenario, 0, $scenario.Length)
+    $gzip.Dispose()
+    $encoded = [Convert]::ToBase64String($buffer.ToArray())
+    $buffer.Dispose()
+    $python = "import base64,gzip;exec(compile(gzip.decompress(base64.b64decode('$encoded')),'verify-portal-aws.py','exec'))"
+}
 $overrides = @{containerOverrides=@(@{name='Main';command=@('python','-c',$python);environment=@(@{name='PORTAL_URL';value=$endpoint})})}
 $overridePath = Join-Path ([IO.Path]::GetTempPath()) ('incubadora-verification-' + [guid]::NewGuid().ToString() + '.json')
 try {

@@ -1,0 +1,112 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Session Manager access to the private Incubadora PostgreSQL database, without inbound SSH.
+Metadata:
+  AWSToolsMetrics:
+    AWSAgentToolkit: aws-cloudformation@2
+  com.aws.cloudformation.Context:
+    ref: [{at: ../../docs/acceso-rds.md, has: access commands and operating instructions}]
+Parameters:
+  FoundationStack:
+    Type: String
+    Default: incubadora-foundation
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9-]*'
+  ImageId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
+Resources:
+  AccessRole:
+    Type: AWS::IAM::Role
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: register the node in SSM and retrieve only the application database credential
+        must: [Never grant access to the RDS administrator or JWT secrets]
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: {Service: ec2.amazonaws.com}
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub 'arn:${AWS::Partition}:iam::aws:policy/AmazonSSMManagedInstanceCore'
+      Policies:
+        - PolicyName: ReadApplicationDatabaseCredential
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: {Fn::ImportValue: !Sub '${FoundationStack}-AppSecretArn'}
+  AccessProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles: [!Ref AccessRole]
+  AccessInstance:
+    Type: AWS::EC2::Instance
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: disposable database client and Session Manager tunnel in the RDS VPC
+        must: [No inbound ports or SSH keys, IMDSv2 required, Encrypted disposable root disk, Never store database passwords on disk]
+    Properties:
+      ImageId: !Ref ImageId
+      InstanceType: t3.micro
+      CreditSpecification: {CPUCredits: standard}
+      IamInstanceProfile: !Ref AccessProfile
+      MetadataOptions:
+        HttpTokens: required
+        HttpEndpoint: enabled
+        HttpPutResponseHopLimit: 1
+      NetworkInterfaces:
+        - DeviceIndex: '0'
+          AssociatePublicIpAddress: true
+          DeleteOnTermination: true
+          SubnetId: !Select [0, !Split [',', {Fn::ImportValue: !Sub '${FoundationStack}-PublicSubnets'}]]
+          GroupSet: [{Fn::ImportValue: !Sub '${FoundationStack}-AppSecurityGroup'}]
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 8
+            VolumeType: gp3
+            Encrypted: true
+            DeleteOnTermination: true
+      Tags:
+        - {Key: Name, Value: !Sub '${AWS::StackName}-rds-client'}
+        - {Key: Project, Value: !Ref FoundationStack}
+        - {Key: Purpose, Value: private-rds-access}
+      UserData:
+        Fn::Base64: !Sub
+          - |
+            #!/bin/bash
+            set -euo pipefail
+            dnf install -y postgresql15
+            install -d -m 755 /opt/incubadora
+            curl --fail --silent --show-error --retry 5 https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem -o /opt/incubadora/rds-ca.pem
+            chmod 644 /opt/incubadora/rds-ca.pem
+            cat > /usr/local/bin/incubadora-db <<'PY'
+            #!/usr/bin/python3
+            import json, os, subprocess, sys
+            result = subprocess.run([
+                'aws', 'secretsmanager', 'get-secret-value', '--region', '${AWS::Region}',
+                '--secret-id', '${SecretArn}', '--output', 'json', '--no-cli-pager'
+            ], check=True, capture_output=True, text=True)
+            credential = json.loads(json.loads(result.stdout)['SecretString'])
+            environment = os.environ.copy()
+            environment.update({
+                'PGHOST': '${DatabaseHost}', 'PGPORT': '5432', 'PGDATABASE': 'incubadora',
+                'PGUSER': credential['username'], 'PGPASSWORD': credential['password'],
+                'PGSSLMODE': 'verify-full', 'PGSSLROOTCERT': '/opt/incubadora/rds-ca.pem',
+                'PGCONNECT_TIMEOUT': '15',
+                'PGOPTIONS': '-c default_transaction_read_only=on -c statement_timeout=60000',
+                'PSQL_HISTORY': '/dev/null'
+            })
+            os.execvpe('psql', ['psql', '-X', *sys.argv[1:]], environment)
+            PY
+            chmod 755 /usr/local/bin/incubadora-db
+            systemctl enable --now amazon-ssm-agent
+          - SecretArn: {Fn::ImportValue: !Sub '${FoundationStack}-AppSecretArn'}
+            DatabaseHost: {Fn::ImportValue: !Sub '${FoundationStack}-DatabaseHost'}
+Outputs:
+  InstanceId:
+    Value: !Ref AccessInstance
+  SessionCommand:
+    Value: !Sub 'aws ssm start-session --target ${AccessInstance} --profile incubadora-deploy --region ${AWS::Region}'

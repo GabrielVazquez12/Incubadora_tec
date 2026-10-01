@@ -185,6 +185,8 @@ Estado de preparación local y recuperación al 30 de septiembre de 2026:
 
 Consultar este documento para retomar el despliegue. La conexión S3 local
 previa está documentada por separado en `docs/continuar-s3.md`.
+El acceso EC2 a la base se detalla en `docs/acceso-rds.md`; las pruebas del
+flujo del portal, alertas y respaldos se registran en `docs/operacion-aws.md`.
 
 ### Recuperación de ECS del 30 de septiembre
 

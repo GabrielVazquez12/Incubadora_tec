@@ -31,6 +31,7 @@ from app.models import (
 from app.schemas.portal import RegistrationInput
 from app.modules.compartido.services import (
     today,
+    has_started,
     fail,
     admin,
     require_admin,
@@ -151,7 +152,7 @@ def save(collection: str, key: UUID, payload: dict,
 @router.post("/events/{key}/register")
 def register(key: UUID, payload: RegistrationInput, db: Session = Depends(get_db), user: Usuario = Depends(get_current_user)):
     event = record(db, Evento, key, lock=True)
-    if event.estatus != "Activo" or event.fecha < today():
+    if event.estatus != "Activo" or has_started(event.fecha, event.hora):
         fail("Las inscripciones están cerradas.")
     if db.scalar(select(Inscripcion.id).where(Inscripcion.event == key, Inscripcion.user == user.id)):
         fail("Ya tienes una inscripción en este evento.", 409)
@@ -185,7 +186,8 @@ def delete(collection: str, key: UUID, db: Session = Depends(get_db), user: Usua
         references = [(Proyecto, Proyecto.usuario_id), (IntegranteProyecto, IntegranteProyecto.usuario_id),
                       (Documento, Documento.subido_por_id), (HistorialEstatus, HistorialEstatus.cambiado_por_id),
                       (Inscripcion, Inscripcion.user), (Pago, Pago.user), (Horario, Horario.coordinador),
-                      (Tutoria, Tutoria.user), (Solicitud, Solicitud.user), (Innovacion, Innovacion.user)]
+                      (Tutoria, Tutoria.user), (Solicitud, Solicitud.user), (Innovacion, Innovacion.user),
+                      (RegistroInicial, RegistroInicial.user)]
         if any(db.scalar(select(func.count()).select_from(model).where(column == key)) for model, column in references):
             fail("El usuario tiene registros asociados; conserva su cuenta e historial.", 409)
     elif collection == "slots":

@@ -1,11 +1,9 @@
+import { portalClock } from './schedule.js';
 export const roleNames = { estudiante: 'Emprendedor', admin: 'Coordinador', externo: 'Externo' };
 export const rolePaths = { estudiante: 'emprendedor', admin: 'coordinador', externo: 'externo' };
 export const demoPeople = { estudiante: 'Diego Ramírez', admin: 'Ana Martínez', externo: 'Karla Soto' };
 export const specialties = ['Ing. en Sistemas', 'Ing. Industrial', 'Ing. en Gestión Empresarial', 'Ing. Mecatrónica'];
-export const today = () => {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-};
+export const today = () => portalClock().date;
 export const money = value => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(value);
 export const dateLabel = value => value ? new Date(`${value.slice(0, 10)}T12:00:00`).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 export const uid = () => crypto.randomUUID();

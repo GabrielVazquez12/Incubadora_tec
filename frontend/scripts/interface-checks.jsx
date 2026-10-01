@@ -190,3 +190,26 @@ for (const estatus of ['Borrador', 'Pendiente', 'En revisión', 'Correcciones so
 }
 assert.ok(downloadButton(null, downloadable, true).includes('disabled=""'));
 console.log('PASS: descarga Word solo para registros aprobados, coordinación y titular.');
+
+// Live module behavior: own availability, disabled payments and non-catalog specialties.
+const moduleData = { ...initialData(), members: [{ proyecto_id: 'ecopack', usuario_id: 'luis' }], documents: [], history: [], initialRegistrations: [],
+  slots: [{ id: 'own', fecha: '2099-01-01', inicio: '10:00', fin: '11:00', coordinador: 'ana' },
+    { id: 'other', fecha: '2099-01-02', inicio: '12:00', fin: '13:00', coordinador: 'another-admin' }],
+};
+moduleData.projects[0].especialidad = 'Biotecnología';
+moduleData.events[0] = { ...moduleData.events[0], fecha: '2099-01-01' };
+globalThis.localStorage = { getItem: () => 'test-token' };
+const moduleContext = { data: moduleData, user: moduleData.users.find(u => u.id === 'ana'), loading: false, paymentsMode: 'deshabilitado', refresh() {}, notify() {} };
+const modulePage = path => renderToString(<StaticRouter location={path}><PortalContext.Provider value={moduleContext}><AppRoutes /></PortalContext.Provider></StaticRouter>);
+const availability = modulePage('/coordinador/tutorias/disponibilidad');
+assert.ok(availability.includes('10:00'));
+assert.ok(!availability.includes('12:00'), 'Availability must only expose own blocks for editing');
+assert.ok(modulePage('/coordinador/eventos/pitch/editar').includes('Los cobros están deshabilitados'));
+assert.ok(modulePage('/coordinador/pagos').includes('Los cobros reales aún no están habilitados'));
+assert.ok(modulePage('/coordinador/reportes/proyectos').includes('Biotecnología'), 'Reports include specialties stored outside the initial catalog');
+const entrepreneurs = modulePage('/coordinador/reportes/emprendedores');
+assert.match(entrepreneurs, /Luis Peña<\/strong><\/td><td>luis.pena@its.edu.mx<\/td><td>Ing. Industrial<\/td><td>2<\/td>/, 'Reports count membership as well as ownership');
+moduleContext.user = moduleData.users.find(u => u.id === 'diego');
+assert.ok(modulePage('/emprendedor/eventos').includes('Pagos no disponibles'));
+delete globalThis.localStorage;
+console.log('PASS: own coordinator availability, actual payment configuration and complete membership reports.');

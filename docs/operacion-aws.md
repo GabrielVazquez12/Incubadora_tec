@@ -1,5 +1,7 @@
 # Operacion del portal AWS
 
+El alcance y las pruebas de cada modulo se describen en [Modulos de Incubadora](modulos-incubadora.md).
+
 ## Comprobacion del 1 de octubre de 2026
 
 La prueba `./scripts/verify-aws.ps1 -PortalFlow` termino con codigo cero sobre

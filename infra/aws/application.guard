@@ -1,0 +1,17 @@
+rule runtime_scope {
+    Resources.Service.Properties {
+        Cpu == '512'
+        Memory == '1024'
+        ScalingTarget.MinTaskCount == 1
+        ScalingTarget.MaxTaskCount == 1
+        HealthCheckPath == '/health'
+        PrimaryContainer.Environment[ Name == 'DEMO_PAYMENTS_ENABLED' ].Value == 'false'
+        PrimaryContainer.Environment[ Name == 'DOCUMENT_STORAGE' ].Value == 's3'
+        PrimaryContainer.Secrets[ Name == 'DB_ADMIN_PASSWORD' ] empty
+    }
+}
+
+rule logs_retained {
+    Resources.Logs.DeletionPolicy == 'Retain'
+    Resources.Logs.UpdateReplacePolicy == 'Retain'
+}

@@ -23,7 +23,7 @@ administrador de RDS ni el JWT del portal. El disco raíz está cifrado.
 
 1. En CloudFormation, abrir `incubadora-database-access` y copiar el output
    `InstanceId`.
-2. En EC2, seleccionar esa instancia y abrir **Connect > Session Manager**.
+2. En EC2, seleccionar esa instancia. Si está detenida, usar **Instance state > Start instance** y esperar a que SSM esté disponible. Abrir **Connect > Session Manager**.
 3. Ejecutar `incubadora-db` para entrar a PostgreSQL.
 
 ```sql
@@ -45,8 +45,20 @@ y el complemento local de Session Manager. Como alternativa, usar la consola
 web, que no requiere instalar el complemento.
 
 ```powershell
+aws ec2 start-instances --instance-ids i-06d8b356596928765 --profile incubadora-deploy --region us-east-1
+aws ec2 wait instance-status-ok --instance-ids i-06d8b356596928765 --profile incubadora-deploy --region us-east-1
 aws ssm start-session --target i-06d8b356596928765 --profile incubadora-deploy --region us-east-1
 ```
+
+Si SSM todavía no está disponible, esperar a que el agente se registre y reintentar.
+Al terminar, salir de PostgreSQL y de Session Manager y detener el cliente:
+
+```powershell
+aws ec2 stop-instances --instance-ids i-06d8b356596928765 --profile incubadora-deploy --region us-east-1
+```
+
+El 1 de octubre se detuvo este cliente para usarlo bajo demanda. La comprobación
+`Online` de arriba corresponde a la prueba inicial, antes de detenerlo.
 
 La instancia y su IPv4 tienen costos mientras estén encendidas; el disco sigue
 generando cargos cuando se detiene. Se puede detener cuando no se use y volver
@@ -58,8 +70,8 @@ Inventario de `us-east-1`, 1 de octubre de 2026:
 
 | Instancia | Nombre | Observación |
 |---|---|---|
-| i-0d54cecd4b47df843 | incubadora-backend | VPC anterior; conservar hasta aclarar su uso |
-| i-0754525e89d165db3 | incubadora-db-client | VPC anterior; no tiene perfil IAM de SSM |
+| i-0d54cecd4b47df843 | incubadora-backend | Detenida para ahorrar; disco conservado |
+| i-0754525e89d165db3 | incubadora-db-client | Detenida para ahorrar; disco conservado; sin perfil IAM de SSM |
 | i-07b79204a618b534c | Proyecto-is-backend-env | Eliminada con autorización el 1 de octubre; entorno Terminated |
 
 No se debe terminar solo la EC2 gestionada por Auto Scaling: el grupo la

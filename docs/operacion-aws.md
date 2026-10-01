@@ -74,7 +74,28 @@ Cuando haya capacidad autorizada:
    restaurar RDS no recupera por si solo versiones borradas de los objetos.
 5. Retirar unicamente el clon de prueba, conservando la base original y el snapshot.
 
-## Pendientes que requieren informacion
+## Reduccion de gasto: 1 de octubre de 2026
+
+Se confirmó el estado `stopped` de las EC2 anteriores `i-0d54cecd4b47df843` y
+`i-0754525e89d165db3`, y el cliente de consultas `i-06d8b356596928765`.
+Se conservaron sus discos. El cliente no tenía sesiones SSM activas; se puede
+encender siguiendo `docs/acceso-rds.md`. El portal funciona en ECS Fargate;
+después de detenerlas, `/health` respondió `ok` y PostgreSQL estaba `available`.
+
+Con tarifas consultadas de USD 0.0104/h por t3.micro y USD 0.005/h por IPv4,
+730 horas sin las tres instancias representan aproximadamente USD 33.73 menos
+de consumo mensual. Excluye EBS, que sigue generando cargos; encender el cliente
+reduce el ahorro. Es una estimación de consumo, no de factura tras créditos.
+
+La RDS MySQL antigua `incubadora-db` se conserva: los máximos horarios de
+DatabaseConnections consultados entre el 24 de septiembre y el 1 de octubre
+fueron cero. Esto no demuestra que sus datos carezcan de valor. Su eliminación
+y respaldo final requieren una decisión explícita.
+
+Existe un presupuesto mensual `Escuela` de USD 1; no se modificó. La plantilla
+de monitoreo continúa pendiente de correo e importe elegidos por el usuario.
+
+## Informacion pendiente
 
 - Correo real e importe mensual para activar alertas.
 - Disponibilidad de capacidad para probar la restauracion RDS.

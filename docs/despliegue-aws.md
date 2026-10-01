@@ -1,0 +1,220 @@
+# Docker local y AWS con RDS
+
+## Arquitectura preparada
+
+El entorno habitual (`docker-compose.yml`, puerto 5173) conserva PostgreSQL
+local. El entorno AWS usa una RDS PostgreSQL nueva e independiente. No existe
+replicación entre ambos ni se copian automáticamente datos locales a AWS.
+
+`Dockerfile.production` compila React con `/api` como URL de API y sirve sus
+archivos junto a FastAPI, sin recarga de desarrollo y con un usuario Linux
+sin privilegios. La imagen se puede ejecutar en Docker y ECS Fargate.
+Los `.dockerignore` excluyen contraseñas, sesiones AWS y archivos `.env`.
+
+La infraestructura se divide en dos plantillas:
+
+- `infra/aws/rds-foundation.yml`: VPC, dos subredes públicas para contenedores,
+  dos privadas para RDS, RDS PostgreSQL `db.t4g.micro`, 20 GiB gp3, secretos,
+  un bucket privado exclusivo de AWS y un repositorio ECR inmutable.
+- `infra/aws/application.yml`: roles separados de ejecución y aplicación,
+  tarea de migración, logs y servicio ECS Express Mode con HTTPS administrado.
+
+RDS solo acepta conexiones desde el grupo de seguridad de la aplicación.
+El cliente usa `sslmode=verify-full` y el certificado público de RDS incluido
+en la imagen. No hay puerto 5432 público, ni claves AWS estáticas en ECS.
+Las tareas públicas permiten descargar imágenes sin NAT Gateway; ECS crea
+el acceso desde su balanceador. La base permanece en subredes privadas.
+
+La tarea inicial de migración crea un usuario PostgreSQL propio para la app
+y aplica Alembic con ese usuario. Solo esa tarea recibe el secreto del
+administrador RDS. El servicio web recibe el usuario de aplicación y su
+contraseña, y un secreto JWT independiente.
+
+La configuración inicial usa una sola tarea de 0.5 vCPU/1 GiB y una RDS
+Single-AZ. No es una configuración de alta disponibilidad. Se conservan
+backups de RDS por un día (límite admitido por el plan actual), se activa protección de borrado y se retienen
+base, secretos, imágenes y documentos al eliminar los stacks. La retención
+puede mantener cargos incluso después de eliminar un stack.
+
+## Prueba local de la imagen de producción
+
+```powershell
+./scripts/start-production-local.ps1
+```
+
+Abre http://localhost:8080. El script genera secretos aleatorios en
+`.local/production-test.env`, excluido de Git y protegido con ACL de Windows.
+Usa un proyecto Compose y un volumen propios; no altera la base de desarrollo.
+El contenedor de migración debe terminar con código cero antes de arrancar la app.
+
+Para detener esta instancia, conservando la base:
+
+```powershell
+docker compose --env-file .local/production-test.env -p incubadora-production-local -f compose.production.yml down
+```
+
+## Despliegue inicial
+
+Usar un perfil autorizado para CloudFormation, RDS, EC2/VPC, ECR, ECS, IAM,
+Secrets Manager, S3 y CloudWatch Logs. `incubadora-dev` no tiene esos permisos.
+El perfil de despliegue nunca se copia al contenedor.
+
+Validar ambas plantillas con cfn-lint, cfn-guard y CloudFormation antes de
+ejecutar los cambios. `scripts/deploy-aws.ps1` genera un change set y muestra
+sus cambios; solo lo ejecuta al recibir `-Execute`. Revisar el costo antes.
+Los siguientes comandos crean recursos facturables:
+
+```powershell
+# Planificar y luego crear la infraestructura.
+./scripts/deploy-aws.ps1 -Stage Foundation
+./scripts/deploy-aws.ps1 -Stage Foundation -Execute
+
+# Usar una etiqueta nueva e inmutable para cada imagen.
+./scripts/deploy-aws.ps1 -Stage BuildPush -ImageTag release-20260929-1 -Execute
+
+# Preparar tareas/roles sin publicar el portal; ejecutar la migración.
+./scripts/deploy-aws.ps1 -Stage Migrate -ImageTag release-20260929-1
+./scripts/deploy-aws.ps1 -Stage Migrate -ImageTag release-20260929-1 -Execute
+
+# Solo después de una migración con código cero:
+./scripts/deploy-aws.ps1 -Stage Service -ImageTag release-20260929-1
+./scripts/deploy-aws.ps1 -Stage Service -ImageTag release-20260929-1 -Execute
+```
+
+El último paso imprime el endpoint. Verificar `/health`, `/api/health`, el
+portal, registro e inicio de sesión, carga y descarga privada y permisos.
+La base nueva no tiene usuarios. La primera cuenta de coordinación debe
+aprovisionarse explícitamente; el registro público no permite crear admins.
+
+El script está pensado para el despliegue inicial. Rechaza preparar migraciones
+sobre un servicio ya publicado, eliminar recursos o reemplazarlos. Para una
+actualización posterior, preparar una revisión de migración independiente,
+aplicarla y publicar la imagen manteniendo compatibilidad con la versión anterior.
+Revisar `list-imports` antes de cambiar exports de la infraestructura.
+
+Si rota un secreto inyectado en ECS, se deben recrear las tareas para cargarlo.
+Si se cambia la contraseña del usuario de la app, hay que sincronizar el rol
+PostgreSQL mediante una tarea administrativa antes de reiniciar el servicio.
+
+## Costos y límites
+
+Se facturan RDS, almacenamiento, Fargate, balanceador/LCU, direcciones IPv4,
+Secrets Manager, logs, ECR, S3 y transferencia. Los cargos no dependen de que
+el portal reciba visitas. El autoescalado de almacenamiento permite crecer
+hasta 100 GiB y puede incrementar el costo; no reduce automáticamente el disco.
+No se asume que la cuenta tenga créditos ni que la capa gratuita cubra el entorno.
+
+Estimación consultada el 29 de septiembre de 2026 para us-east-1, 730 horas/mes:
+
+| Componente | USD/mes |
+| --- | ---: |
+| RDS db.t4g.micro Single-AZ | 11.68 |
+| RDS gp3, 20 GiB | 2.30 |
+| Fargate, 0.5 vCPU y 1 GiB | 18.02 |
+| Balanceador ALB, cargo horario | 16.42 |
+| Tres IPv4 públicas (dos del ALB y una tarea) | 10.95 |
+| Tres secretos | 1.20 |
+| Base calculada antes de redondear componentes | 60.58 |
+
+Una LCU utilizada durante todo el mes añade USD 5.84: total USD 66.42 antes
+de logs, ECR, S3, solicitudes, transferencia, impuestos y consumo adicional.
+Las tarifas de RDS, gp3, Fargate y ALB se consultaron mediante AWS Price List.
+Las cantidades de IPv4 y LCU son supuestos de esta estimación, no un límite
+de facturación. Los despliegues pueden ejecutar tareas adicionales temporalmente.
+
+Referencias:
+
+- [ECS Express Mode y recursos administrados](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/express-service-work.html)
+- [Verificación SSL para RDS PostgreSQL](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/PostgreSQL.Concepts.General.SSL.html)
+- [Calculadora de AWS](https://calculator.aws/)
+- [Precios de IPv4](https://aws.amazon.com/vpc/pricing/)
+- [Precios de Secrets Manager](https://aws.amazon.com/secrets-manager/pricing/)
+
+## Estado
+
+Estado de preparación local y recuperación al 30 de septiembre de 2026:
+
+- Imagen de producción construida y funcionando en http://localhost:8080.
+- Migraciones aplicadas a su base local independiente.
+- Salud de BD/API, portal, ruta SPA y archivo JavaScript verificados por HTTP.
+- Registro, login y estado autenticado probados; cuenta temporal eliminada.
+- Pasaron las 17 pruebas del backend, incluidas las dos nuevas de configuración.
+- Sintaxis de ambos scripts PowerShell y `git diff --check` sin errores.
+- `aws cloudformation validate-template` aceptó ambas plantillas. Esto comprueba
+  sintaxis, no sustituye la validación completa de propiedades ni un despliegue.
+- cfn-lint 1.57.1 está en `.local/aws-validation`; cfn-guard 3.2.1 está en
+  `.local/cfn-guard`. Se instalaron con autorización. Ambas plantillas pasan
+  cfn-lint. Las cuatro reglas oficiales seleccionadas para RDS privada/cifrada
+  y S3 privado/cifrado pasan, sin supresiones. Se corrigió el valor de escalado
+  de ECS a `AVERAGE_CPU` y se fijó PostgreSQL 15.19.
+- Perfil `incubadora-deploy` autenticado con root por el usuario. No copiarlo a
+  la imagen. Los roles de aplicación y ejecución están separados en las plantillas.
+- Se observaron RDS `incubadora-db` (MySQL), `proyecto-is-db` (PostgreSQL) y el
+  stack `awseb-e-dkesz2rzfx-stack`. El usuario autorizó explícitamente eliminar
+  `proyecto-is-db` el 30 de septiembre para liberar el cupo de RDS. Se solicitó
+  su eliminación con instantánea final `proyecto-is-db-final-20260930`; AWS
+  terminó la eliminación. La instantánea está `available`, al 100%, comprobado
+  el 30 de septiembre. La instancia `proyecto-is-db` ya no aparece en RDS.
+  `incubadora-db` y Elastic Beanstalk no se modificaron.
+- El primer intento falló porque el plan FREE rechazó siete días de backups.
+  No llegó a crear RDS. Se ajustó `BackupRetentionDays` a 1, como las bases
+  existentes. No se cambió el plan de facturación.
+- El stack fallido se eliminó con autorización conservando cuatro recursos.
+  Se importaron nuevamente al stack `incubadora-foundation`. El siguiente
+  intento falló por el máximo de instancias RDS del plan FREE y volvió a
+  `UPDATE_ROLLBACK_COMPLETE`, conservando los cuatro recursos importados.
+  Tras liberar el cupo, el reintento terminó correctamente. RDS nueva:
+  `incubadora-foundation-database-zuqiwmta85oz`, PostgreSQL 15.19, cifrada,
+  privada, protegida contra borrado y con un día de backups.
+  Los recursos retenidos son:
+  - bucket `incubadora-foundation-documents-kvaqc4jj7kkx`;
+  - ECR `incubadora-foundation-repository-3fb3v00hv7ck`;
+  - los secretos `AppSecret-u5IGxUQVpsMw-vn6C07` y `JwtSecret-f0QjgKod3ALG-bL2biP`.
+- Al consultar el plan el 29 de septiembre, era FREE, con USD 64.53 de crédito
+  restante y vencimiento informado el 5 de enero de 2027. El crédito se
+  comparte con otros recursos de la cuenta; volver a consultarlo si hace falta.
+- Imagen publicada en ECR con etiqueta `release-20260929-1` y digest
+  `sha256:93f576103b4f0cf4302e44d6dff10a40e98425f1f7ff94cc0a15f3b0ecc9d864`.
+- El primer intento del stack de aplicación falló mientras ECS inicializaba
+  `AWSServiceRoleForECS`. Se confirmó su política administrada y se reintentó
+  el stack fallido. Se conservó el grupo de logs del intento:
+  `incubadora-application-Logs-ztkWnRUPPhcf`.
+- El stack `incubadora-application` terminó en `UPDATE_COMPLETE`. La tarea de
+  migración terminó con código cero y el servicio web está publicado. La
+  recuperación y las comprobaciones finales se detallan a continuación.
+
+Consultar este documento para retomar el despliegue. La conexión S3 local
+previa está documentada por separado en `docs/continuar-s3.md`.
+
+### Recuperación de ECS del 30 de septiembre
+
+- El primer servicio `incubadora-application-portal` falló en `CreateLoadBalancer`
+  con `AccessDenied`. La política administrada requerida estaba asociada al rol.
+  El mismo balanceador pudo crearse con el perfil de despliegue; no se modificó
+  el plan de la cuenta. ARN: `arn:aws:elasticloadbalancing:us-east-1:940827433988:loadbalancer/app/ecs-express-gateway-alb-501e660c/ff306d50b478f77a`.
+- El servicio sobrevivió al rollback fuera del stack. Se importó a CloudFormation
+  y se restauraron sus outputs, pero su revisión siguió sin iniciar tareas.
+- Se preparó y ejecutó un reemplazo limitado al servicio, con nombre
+  `incubadora-application-web`. El servicio anterior se retiró durante la
+  recuperación; no había iniciado tareas. RDS y S3 se conservaron.
+- Express Mode siguió esperando recursos del balanceador compartido. Se agregó
+  `PublicWebA` (10.42.2.0/24) y el export `WebPublicSubnets` para recuperar el
+  servicio con otra combinación de subredes. Cambiar la revisión durante el
+  reemplazo provocó un rollback; se reintentó con la nueva red incluida desde
+  el inicio. Ese intento terminó en `UPDATE_COMPLETE`, con una tarea activa.
+  AWS retiró el balanceador del intento anterior; se comprobó que ya no existe.
+- Docker local se reinició y `/health` respondió `{"status":"ok"}`.
+
+### Resultado verificado
+
+- Portal AWS: https://in-eba33374426a491eac5ff2c493e78050.ecs.us-east-1.on.aws
+- Portal Docker local: http://localhost:8080
+- HTTPS: página principal `200`, `/health` y `/api/health` responden `ok`.
+- `scripts/verify-aws.ps1`: conexión RDS con TLS y usuario `incubadora_app`,
+  migración `a75c42e1b543`, uso del rol ECS, carga/lectura S3 cifrada AES256,
+  registro, login y consulta autenticada del portal correctos. Se eliminó la
+  cuenta temporal; el objeto S3 se borró lógicamente (el bucket usa versionado).
+- Las bases local y AWS son independientes. No se copiaron usuarios locales
+  ni se creó una cuenta administradora en AWS. Los pagos demo están desactivados.
+- Ambas plantillas pasan cfn-lint; scripts PowerShell sin errores de sintaxis.
+  El despliegue ahora exige una tarea activa y salud HTTPS antes de informar éxito.

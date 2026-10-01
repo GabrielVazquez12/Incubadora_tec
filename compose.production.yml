@@ -1,0 +1,43 @@
+# Standalone local production smoke test; does not touch the development database.
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: incubadora
+      POSTGRES_PASSWORD: ${LOCAL_DB_PASSWORD:?Set LOCAL_DB_PASSWORD}
+      POSTGRES_DB: incubadora
+    volumes:
+      - production_test_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U incubadora -d incubadora"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+  migrate:
+    image: incubadora-production:local
+    build:
+      context: .
+      dockerfile: Dockerfile.production
+    command: [python, production_start.py, migrate]
+    environment: &app_environment
+      DB_HOST: db
+      DB_NAME: incubadora
+      DB_USER: incubadora
+      DB_PASSWORD: ${LOCAL_DB_PASSWORD:?Set LOCAL_DB_PASSWORD}
+      DB_SSLMODE: disable
+      JWT_SECRET: ${LOCAL_JWT_SECRET:?Set LOCAL_JWT_SECRET}
+      DOCUMENT_STORAGE: local
+      DEMO_PAYMENTS_ENABLED: "false"
+    depends_on:
+      db:
+        condition: service_healthy
+  app:
+    image: incubadora-production:local
+    environment: *app_environment
+    ports:
+      - "127.0.0.1:8080:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+volumes:
+  production_test_data:

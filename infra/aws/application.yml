@@ -1,0 +1,239 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Incubadora container hosting with managed HTTPS and one-off private RDS migrations.
+Metadata:
+  AWSToolsMetrics:
+    AWSAgentToolkit: aws-cloudformation@2
+  com.aws.cloudformation.Context:
+    ref: [{at: ../../docs/despliegue-aws.md, has: architecture and deployment sequence}]
+Parameters:
+  FoundationStack:
+    Type: String
+    Default: incubadora-foundation
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9-]*'
+  ImageTag:
+    Type: String
+    AllowedPattern: '[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,127}'
+  EnableService:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+Conditions:
+  PublishService: !Equals [!Ref EnableService, 'true']
+Resources:
+  Cluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      CapacityProviders: [FARGATE]
+  Logs:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      RetentionInDays: 30
+  ExecutionRole:
+    Type: AWS::IAM::Role
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: ECS agent pulls only this image and injects application secrets
+        must: [Never grant this role access to the administrator secret]
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: {Service: ecs-tasks.amazonaws.com}
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals: {'aws:SourceAccount': !Ref 'AWS::AccountId'}
+              ArnLike: {'aws:SourceArn': !Sub 'arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:*'}
+      Policies:
+        - PolicyName: RuntimeDependencies
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: ecr:GetAuthorizationToken
+                Resource: '*'
+              - Effect: Allow
+                Action: [ecr:BatchGetImage, ecr:GetDownloadUrlForLayer, ecr:BatchCheckLayerAvailability]
+                Resource: {Fn::ImportValue: !Sub '${FoundationStack}-RepositoryArn'}
+              - Effect: Allow
+                Action: [logs:CreateLogStream, logs:PutLogEvents]
+                Resource: !GetAtt Logs.Arn
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource:
+                  - {Fn::ImportValue: !Sub '${FoundationStack}-AppSecretArn'}
+                  - {Fn::ImportValue: !Sub '${FoundationStack}-JwtSecretArn'}
+  MigrationExecutionRole:
+    Type: AWS::IAM::Role
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: bootstrap requires administrator credentials before switching to the app login
+        must: [Use only for one-off migration tasks]
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: {Service: ecs-tasks.amazonaws.com}
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals: {'aws:SourceAccount': !Ref 'AWS::AccountId'}
+              ArnLike: {'aws:SourceArn': !Sub 'arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:*'}
+      Policies:
+        - PolicyName: MigrationDependencies
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: ecr:GetAuthorizationToken
+                Resource: '*'
+              - Effect: Allow
+                Action: [ecr:BatchGetImage, ecr:GetDownloadUrlForLayer, ecr:BatchCheckLayerAvailability]
+                Resource: {Fn::ImportValue: !Sub '${FoundationStack}-RepositoryArn'}
+              - Effect: Allow
+                Action: [logs:CreateLogStream, logs:PutLogEvents]
+                Resource: !GetAtt Logs.Arn
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource:
+                  - {Fn::ImportValue: !Sub '${FoundationStack}-AdminSecretArn'}
+                  - {Fn::ImportValue: !Sub '${FoundationStack}-AppSecretArn'}
+                  - {Fn::ImportValue: !Sub '${FoundationStack}-JwtSecretArn'}
+  TaskRole:
+    Type: AWS::IAM::Role
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: application gets renewable AWS credentials directly from ECS
+        must: [Restrict S3 objects to this environment and expedientes prefix]
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: {Service: ecs-tasks.amazonaws.com}
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals: {'aws:SourceAccount': !Ref 'AWS::AccountId'}
+              ArnLike: {'aws:SourceArn': !Sub 'arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:*'}
+      Policies:
+        - PolicyName: PrivateDocuments
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [s3:GetObject, s3:PutObject, s3:DeleteObject]
+                Resource: !Sub
+                  - 'arn:${AWS::Partition}:s3:::${Bucket}/expedientes/*'
+                  - Bucket: {Fn::ImportValue: !Sub '${FoundationStack}-DocumentsBucket'}
+  InfrastructureRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: {Service: ecs.amazonaws.com}
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub 'arn:${AWS::Partition}:iam::aws:policy/service-role/AmazonECSInfrastructureRoleforExpressGatewayServices'
+  MigrationTask:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Cpu: '512'
+      Memory: '1024'
+      NetworkMode: awsvpc
+      RequiresCompatibilities: [FARGATE]
+      ExecutionRoleArn: !GetAtt MigrationExecutionRole.Arn
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      ContainerDefinitions:
+        - Name: migrate
+          Essential: true
+          Image: !Sub
+            - '${Repository}:${ImageTag}'
+            - Repository: {Fn::ImportValue: !Sub '${FoundationStack}-RepositoryUri'}
+          Command: [python, bootstrap_rds.py]
+          Environment:
+            - {Name: DB_HOST, Value: {Fn::ImportValue: !Sub '${FoundationStack}-DatabaseHost'}}
+            - {Name: DB_NAME, Value: incubadora}
+            - {Name: DB_USER, Value: incubadora_app}
+            - {Name: DB_ADMIN_USER, Value: incubadora_admin}
+            - {Name: DOCUMENT_STORAGE, Value: local}
+          Secrets:
+            - Name: DB_PASSWORD
+              ValueFrom: !Sub
+                - '${Secret}:password::'
+                - Secret: {Fn::ImportValue: !Sub '${FoundationStack}-AppSecretArn'}
+            - Name: DB_ADMIN_PASSWORD
+              ValueFrom: !Sub
+                - '${Secret}:password::'
+                - Secret: {Fn::ImportValue: !Sub '${FoundationStack}-AdminSecretArn'}
+            - {Name: JWT_SECRET, ValueFrom: {Fn::ImportValue: !Sub '${FoundationStack}-JwtSecretArn'}}
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref Logs
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: migration
+  Service:
+    Type: AWS::ECS::ExpressGatewayService
+    Condition: PublishService
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: managed HTTPS endpoint without requiring a custom domain
+        must: [Publish only after migration task exits successfully, Never inject administrator credentials]
+    Properties:
+      Cluster: !Ref Cluster
+      ServiceName: !Sub '${AWS::StackName}-web'
+      ExecutionRoleArn: !GetAtt ExecutionRole.Arn
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      InfrastructureRoleArn: !GetAtt InfrastructureRole.Arn
+      Cpu: '512'
+      Memory: '1024'
+      HealthCheckPath: /health
+      NetworkConfiguration:
+        Subnets: !Split [',', {Fn::ImportValue: !Sub '${FoundationStack}-WebPublicSubnets'}]
+        SecurityGroups: [{Fn::ImportValue: !Sub '${FoundationStack}-AppSecurityGroup'}]
+      ScalingTarget:
+        MinTaskCount: 1
+        MaxTaskCount: 1
+        AutoScalingMetric: AVERAGE_CPU
+        AutoScalingTargetValue: 70
+      PrimaryContainer:
+        Image: !Sub
+          - '${Repository}:${ImageTag}'
+          - Repository: {Fn::ImportValue: !Sub '${FoundationStack}-RepositoryUri'}
+        ContainerPort: 8000
+        AwsLogsConfiguration:
+          LogGroup: !Ref Logs
+          LogStreamPrefix: app
+        Environment:
+          - {Name: DB_HOST, Value: {Fn::ImportValue: !Sub '${FoundationStack}-DatabaseHost'}}
+          - {Name: DB_NAME, Value: incubadora}
+          - {Name: DB_USER, Value: incubadora_app}
+          - {Name: DOCUMENT_STORAGE, Value: s3}
+          - {Name: AWS_REGION, Value: !Ref 'AWS::Region'}
+          - {Name: AWS_S3_BUCKET, Value: {Fn::ImportValue: !Sub '${FoundationStack}-DocumentsBucket'}}
+          - {Name: DEMO_PAYMENTS_ENABLED, Value: 'false'}
+          - {Name: CORS_ORIGINS, Value: ''}
+        Secrets:
+          - Name: DB_PASSWORD
+            ValueFrom: !Sub
+              - '${Secret}:password::'
+              - Secret: {Fn::ImportValue: !Sub '${FoundationStack}-AppSecretArn'}
+          - {Name: JWT_SECRET, ValueFrom: {Fn::ImportValue: !Sub '${FoundationStack}-JwtSecretArn'}}
+Outputs:
+  Cluster:
+    Description: Cluster for deployment and migration tasks
+    Value: !Ref Cluster
+  MigrationTask:
+    Description: Run once before enabling or updating the service
+    Value: !Ref MigrationTask
+  LogGroup:
+    Description: Application and migration logs
+    Value: !Ref Logs
+  Endpoint:
+    Condition: PublishService
+    Description: Managed HTTPS portal endpoint
+    Value: !GetAtt Service.Endpoint

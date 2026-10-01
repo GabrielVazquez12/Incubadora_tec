@@ -1,0 +1,250 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Incubadora cloud foundation with private PostgreSQL and isolated production documents.
+Metadata:
+  AWSToolsMetrics:
+    AWSAgentToolkit: aws-cloudformation@2
+  com.aws.cloudformation.Context:
+    ref: [{at: ../../docs/despliegue-aws.md, has: architecture and deployment sequence}]
+Parameters:
+  BackupRetentionDays:
+    Type: Number
+    Default: 1
+    MinValue: 1
+    MaxValue: 35
+    Description: Account free plan currently permits one day; raise after plan and recovery requirements are reviewed.
+  DatabaseClass:
+    Type: String
+    Default: db.t4g.micro
+    AllowedValues: [db.t4g.micro, db.t4g.small, db.t4g.medium]
+Resources:
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.42.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+  GatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref Vpc
+      InternetGatewayId: !Ref InternetGateway
+  PublicA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.42.0.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+  PublicB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.42.1.0/24
+      AvailabilityZone: !Select [1, !GetAZs '']
+  PublicWebA:
+    Type: AWS::EC2::Subnet
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: isolate web ingress from the failed initial Express Mode shared load balancer
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.42.2.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+  PrivateA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.42.10.0/24
+      AvailabilityZone: !Select [0, !GetAZs '']
+  PrivateB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.42.11.0/24
+      AvailabilityZone: !Select [1, !GetAZs '']
+  PublicRoutes:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+  InternetRoute:
+    Type: AWS::EC2::Route
+    DependsOn: GatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRoutes
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+  RouteA:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicA
+      RouteTableId: !Ref PublicRoutes
+  RouteB:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicB
+      RouteTableId: !Ref PublicRoutes
+  RouteWebA:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicWebA
+      RouteTableId: !Ref PublicRoutes
+  AppSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: identify application and migration tasks to the database
+        must: [No inbound rules here; Express Mode adds its own load balancer path]
+    Properties:
+      GroupDescription: Application identity for private database access
+      VpcId: !Ref Vpc
+  DatabaseSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: only application tasks may open database connections
+        must: [Never add public CIDR access to PostgreSQL]
+    Properties:
+      GroupDescription: PostgreSQL from application tasks only
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref AppSecurityGroup
+  DatabaseSubnets:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Isolated subnets without internet routes
+      SubnetIds: [!Ref PrivateA, !Ref PrivateB]
+  Database:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: independent cloud database; single AZ for initial deployment
+        must: [Keep encrypted and private, Retain data on deletion or replacement]
+    Properties:
+      Engine: postgres
+      EngineVersion: '15.19'
+      EngineLifecycleSupport: open-source-rds-extended-support-disabled
+      DBInstanceClass: !Ref DatabaseClass
+      DBName: incubadora
+      MasterUsername: incubadora_admin
+      ManageMasterUserPassword: true
+      AllocatedStorage: '20'
+      MaxAllocatedStorage: 100
+      StorageType: gp3
+      StorageEncrypted: true
+      PubliclyAccessible: false
+      MultiAZ: false
+      BackupRetentionPeriod: !Ref BackupRetentionDays
+      DeletionProtection: true
+      CopyTagsToSnapshot: true
+      AutoMinorVersionUpgrade: true
+      EnableCloudwatchLogsExports: [postgresql, upgrade]
+      DBSubnetGroupName: !Ref DatabaseSubnets
+      VPCSecurityGroups: [!GetAtt DatabaseSecurityGroup.GroupId]
+  AppSecret:
+    Type: AWS::SecretsManager::Secret
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Description: Restricted database login, separate from RDS administrator
+      GenerateSecretString:
+        SecretStringTemplate: '{"username":"incubadora_app"}'
+        GenerateStringKey: password
+        PasswordLength: 40
+        ExcludePunctuation: true
+  JwtSecret:
+    Type: AWS::SecretsManager::Secret
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Description: Independent JWT signing secret for cloud environment
+      GenerateSecretString:
+        PasswordLength: 64
+        ExcludePunctuation: true
+  Documents:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: cloud documents isolated from local development
+        must: [Keep private, Preserve stored documents and previous versions]
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules: [{ObjectOwnership: BucketOwnerEnforced}]
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: {SSEAlgorithm: AES256}
+      VersioningConfiguration: {Status: Enabled}
+  DocumentsPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref Documents
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Deny
+            Principal: '*'
+            Action: 's3:*'
+            Resource: [!GetAtt Documents.Arn, !Sub '${Documents.Arn}/*']
+            Condition:
+              Bool: {'aws:SecureTransport': 'false'}
+  Repository:
+    Type: AWS::ECR::Repository
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      ImageTagMutability: IMMUTABLE
+      ImageScanningConfiguration: {ScanOnPush: true}
+      EncryptionConfiguration: {EncryptionType: AES256}
+Outputs:
+  DatabaseHost:
+    Description: Private PostgreSQL endpoint
+    Value: !GetAtt Database.Endpoint.Address
+    Export: {Name: !Sub '${AWS::StackName}-DatabaseHost'}
+  AdminSecretArn:
+    Description: Administrator secret for one-off migration task only
+    Value: !GetAtt Database.MasterUserSecret.SecretArn
+    Export: {Name: !Sub '${AWS::StackName}-AdminSecretArn'}
+  AppSecretArn:
+    Description: Application database secret
+    Value: !Ref AppSecret
+    Export: {Name: !Sub '${AWS::StackName}-AppSecretArn'}
+  JwtSecretArn:
+    Description: JWT signing secret
+    Value: !Ref JwtSecret
+    Export: {Name: !Sub '${AWS::StackName}-JwtSecretArn'}
+  PublicSubnets:
+    Description: Public subnets for ECS Express Mode
+    Value: !Join [',', [!Ref PublicA, !Ref PublicB]]
+    Export: {Name: !Sub '${AWS::StackName}-PublicSubnets'}
+  WebPublicSubnets:
+    Description: Public subnets dedicated to the recovered web service
+    Value: !Join [',', [!Ref PublicWebA, !Ref PublicB]]
+    Export: {Name: !Sub '${AWS::StackName}-WebPublicSubnets'}
+  AppSecurityGroup:
+    Description: Additional security group for database access
+    Value: !GetAtt AppSecurityGroup.GroupId
+    Export: {Name: !Sub '${AWS::StackName}-AppSecurityGroup'}
+  DocumentsBucket:
+    Description: Private cloud documents bucket
+    Value: !Ref Documents
+    Export: {Name: !Sub '${AWS::StackName}-DocumentsBucket'}
+  RepositoryUri:
+    Description: Production image repository URI
+    Value: !GetAtt Repository.RepositoryUri
+    Export: {Name: !Sub '${AWS::StackName}-RepositoryUri'}
+  RepositoryArn:
+    Description: Repository ARN for scoped image pull permissions
+    Value: !GetAtt Repository.Arn
+    Export: {Name: !Sub '${AWS::StackName}-RepositoryArn'}

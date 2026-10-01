@@ -1,0 +1,25 @@
+FROM node:22-alpine AS frontend
+WORKDIR /build
+COPY frontend/package*.json ./
+RUN npm ci
+COPY frontend/ ./
+ENV VITE_API_URL=/api
+RUN npm run build
+
+FROM python:3.11-slim
+WORKDIR /app
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates curl libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 fonts-dejavu-core \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --create-home --uid 10001 app
+COPY backend/requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+RUN mkdir -p /app/certs && curl --fail --silent --show-error \
+    https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem \
+    -o /app/certs/rds-global-bundle.pem
+COPY backend/ ./
+COPY --from=frontend /build/dist /app/static
+USER app
+EXPOSE 8000
+CMD ["python", "production_start.py"]

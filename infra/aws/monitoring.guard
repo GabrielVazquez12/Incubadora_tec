@@ -1,0 +1,14 @@
+let topics = Resources.*[ Type == 'AWS::SNS::Topic' ]
+let keys = Resources.*[ Type == 'AWS::KMS::Key' ]
+let alarms = Resources.*[ Type == 'AWS::CloudWatch::Alarm' ]
+let budgets = Resources.*[ Type == 'AWS::Budgets::Budget' ]
+
+rule operational_defaults {
+    %topics.Properties.KmsMasterKeyId EXISTS
+    %keys.Properties.EnableKeyRotation == true
+    %keys.DeletionPolicy == 'Retain'
+    %alarms.Properties.AlarmActions EXISTS
+    %alarms.Properties.TreatMissingData EXISTS
+    %budgets.Properties.Budget.CostTypes.IncludeCredit == false
+    %budgets.Properties.Budget.CostTypes.IncludeRefund == false
+}

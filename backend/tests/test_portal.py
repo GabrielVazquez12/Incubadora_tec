@@ -360,6 +360,94 @@ class PortalTest(unittest.TestCase):
         # Datos visibles nunca incluyen hashes ni archivos completos.
         self.assertNotIn('password_hash', json.dumps(self.request("GET", "/portal/state", token=admin)))
 
+    def test_z_request_corrections_and_resubmission(self):
+        self.create_user("request_corrections", "externo")
+        token = self.login("request_corrections@example.com")
+        coordinator = self.login("admin@example.com")
+        proposal = {"nombre": "Propuesta corregible", "descripcion": "Problema inicial", "producto_servicio": "Servicio inicial"}
+        form_id = self.initial_form(token, proposal)
+        proposal["registro_id"] = form_id
+        request_id = str(uuid4())
+        path = f"/portal/requests/{request_id}"
+        self.request("PUT", path, proposal, token)
+        self.request("PUT", path, {**proposal, "estatus": "Rechazada"}, coordinator, status=422)
+        self.request("PUT", path, {**proposal, "estatus": "Rechazada", "observaciones": "Explica el producto corregido."}, coordinator)
+        state = self.request("GET", "/portal/state", token=token)["data"]
+        source = next(r for r in state["initialRegistrations"] if r["id"] == form_id)
+        self.assertEqual(source["estatus"], "Correcciones solicitadas")
+        self.assertEqual(source["observaciones"], "Explica el producto corregido.")
+        self.assertEqual(source["historial"][-1]["anterior"], "Aprobado")
+        self.request("PUT", path, proposal, token, status=422)
+        self.request("GET", f"/portal/initial-registrations/{form_id}/download", token=token, status=409)
+        corrected = {**source["datos"], "descripcion.producto": "Producto corregido"}
+        self.request("PUT", f"/portal/initialRegistrations/{form_id}", {"datos": corrected, "estatus": "Pendiente"}, token)
+        review = f"/portal/initial-registrations/{form_id}/review"
+        self.request("POST", review, {"estatus": "En revisión", "estatus_anterior": "Pendiente"}, coordinator)
+        self.request("POST", review, {"estatus": "Aprobado", "estatus_anterior": "En revisión"}, coordinator)
+        self.request("PUT", path, proposal, token)
+        self.request("PUT", path, {**proposal, "estatus": "Aprobada"}, coordinator)
+        state = self.request("GET", "/portal/state", token=token)
+        self.assertEqual(state["user"]["rol"], "estudiante")
+        projects = [p for p in state["data"]["projects"] if p["solicitud_id"] == request_id]
+        self.assertEqual(len(projects), 1)
+        self.assertEqual(projects[0]["producto_servicio"], "Producto corregido")
+
+    def test_z_module_boundaries(self):
+        """Two coordinators, cancellations and historical records stay consistent."""
+        from app.models import Horario, Evento
+        from app.modules.compartido.services import today
+        from datetime import time as clock_time
+        coordinator = self.login("admin@example.com")
+        student = self.create_user("module_student")
+        token = self.login("module_student@example.com")
+        second_id = str(uuid4())
+        self.request("PUT", f"/portal/users/{second_id}", {
+            "nombre": "Coordinación módulos", "correo": "modules_admin@example.com",
+            "rol": "admin", "password": "TestPass2026!"}, coordinator)
+        second = self.login("modules_admin@example.com")
+        future = (today() + timedelta(days=20)).isoformat()
+        slot = {"fecha": future, "inicio": "10:00", "fin": "11:00"}
+        first_id, other_id = str(uuid4()), str(uuid4())
+        self.request("PUT", f"/portal/slots/{first_id}", slot, coordinator)
+        self.request("PUT", f"/portal/slots/{other_id}", slot, second)
+        self.request("PUT", f"/portal/slots/{first_id}", slot, second, status=403)
+        self.request("DELETE", f"/portal/slots/{first_id}", token=second, status=403)
+        appointment = str(uuid4())
+        self.request("PUT", f"/portal/appointments/{appointment}", {"slot": first_id}, token)
+        self.request("PUT", f"/portal/appointments/{uuid4()}", {"slot": other_id}, token, status=409)
+        self.request("PUT", f"/portal/appointments/{appointment}", {"slot": first_id, "estatus": "Cancelada"}, token)
+        replacement = str(uuid4())
+        self.request("PUT", f"/portal/appointments/{replacement}", {"slot": first_id}, token)
+        self.request("PUT", f"/portal/appointments/{appointment}", {"slot": first_id}, token, status=400)
+        self.request("PUT", f"/portal/appointments/{replacement}", {"slot": first_id, "estatus": "Completado"}, coordinator)
+        # A client cannot rewrite ownership, even when it supplies a forged user.
+        appointments = self.request("GET", "/portal/state", token=token)["data"]["appointments"]
+        self.assertEqual({a["user"] for a in appointments}, {student["id"]})
+        # Historical availability may predate the new validation; booking still checks the clock.
+        past_slot, past_event = uuid4(), uuid4()
+        engine = create_engine(self.url)
+        with Session(engine) as db:
+            db.add(Horario(id=past_slot, coordinador=UUID(second_id), fecha=today(), inicio=clock_time(0), fin=clock_time(0, 1)))
+            db.add(Evento(id=past_event, nombre="Evento vencido", descripcion="Prueba", tipo="Taller", fecha=today(), hora=clock_time(0), cupo=5, precio=0, modalidad="Presencial", estatus="Activo"))
+            db.commit()
+        engine.dispose()
+        self.request("PUT", f"/portal/appointments/{uuid4()}", {"slot": str(past_slot)}, token, status=400)
+        self.request("POST", f"/portal/events/{past_event}/register", {}, token, status=400)
+        self.request("PUT", f"/portal/slots/{uuid4()}", {"fecha": today().isoformat(), "inicio": "00:00", "fin": "00:01"}, second, status=400)
+        pending = str(uuid4())
+        self.request("PUT", f"/portal/appointments/{pending}", {"slot": other_id}, token)
+        demotion = {"nombre": "Coordinación módulos", "correo": "modules_admin@example.com", "rol": "estudiante"}
+        self.request("PUT", f"/portal/users/{second_id}", demotion, coordinator, status=409)
+        self.request("PUT", f"/portal/appointments/{pending}", {"slot": other_id, "estatus": "Cancelada"}, token)
+        self.request("PUT", f"/portal/users/{second_id}", demotion, coordinator)
+        self.request("PUT", f"/portal/appointments/{uuid4()}", {"slot": other_id}, token, status=409)
+        # An account with only a saved draft must retain that draft and its identity.
+        applicant = self.create_user("module_draft", "externo")
+        external = self.login("module_draft@example.com")
+        self.request("PUT", f"/portal/initialRegistrations/{uuid4()}", {"datos": {"identificacion.numero_solicitantes": "1"}, "estatus": "Borrador"}, external)
+        self.request("DELETE", f"/portal/users/{applicant['id']}", token=coordinator, status=409)
+        self.assertTrue(self.login("module_draft@example.com"))
+
     def test_folios_globales_fecha_y_guardado_simultaneo(self):
         from app.models import RegistroInicial
         from app.modules.compartido.services import today

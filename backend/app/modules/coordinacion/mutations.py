@@ -11,7 +11,7 @@ from app.models import (
     Horario,
     Tutoria,
 )
-from app.modules.compartido.services import today, fail, require_admin, record
+from app.modules.compartido.services import today, has_started, fail, require_admin, record
 
 
 def save_users(db, user, key, values, row, payload, new, collection):
@@ -20,6 +20,11 @@ def save_users(db, user, key, values, row, payload, new, collection):
         fail("No puedes quitarte tu propio acceso de coordinador.")
     if row and values["rol"] != "estudiante" and (db.scalar(select(Proyecto.id).where(Proyecto.usuario_id == key).limit(1)) or db.scalar(select(IntegranteProyecto.usuario_id).where(IntegranteProyecto.usuario_id == key).limit(1))):
         fail("El usuario tiene proyectos asociados; conserva su rol de emprendedor.")
+    if row and row.rol == RolUsuario.admin and values["rol"] != "admin":
+        pending = db.scalar(select(Tutoria.id).join(Horario, Tutoria.slot == Horario.id).where(
+            Horario.coordinador == key, Tutoria.estatus == "Confirmada").limit(1))
+        if pending:
+            fail("Resuelve o cancela las tutorías pendientes antes de cambiar el rol del coordinador.", 409)
     password = values.pop("password")
     if new and not password:
         fail("Indica una contraseña inicial de al menos 8 caracteres.")
@@ -50,7 +55,7 @@ def save_slots(db, user, key, values, row, payload, new, collection):
     record(db, Usuario, user.id, lock=True)
     if row and row.coordinador != user.id:
         fail("Solo puedes modificar tus propios horarios.", 403)
-    if values["fecha"] < today() or values["fin"] <= values["inicio"]:
+    if has_started(values["fecha"], values["inicio"]) or values["fin"] <= values["inicio"]:
         fail("Elige una fecha vigente y una hora final posterior al inicio.")
     overlap = db.scalar(select(Horario.id).where(Horario.id != key, Horario.coordinador == user.id, Horario.fecha == values["fecha"], Horario.inicio < values["fin"], Horario.fin > values["inicio"]).limit(1))
     if overlap:

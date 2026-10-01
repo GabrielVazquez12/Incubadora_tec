@@ -63,7 +63,12 @@ export function PortalProvider({ children }) {
       if (!preview && token && !inFlight.current && !document.querySelector('form[data-unsaved="true"]')) refresh();
     };
     window.addEventListener('focus', onFocus);
-    return () => window.removeEventListener('focus', onFocus);
+    // Refresh read-only views without interrupting forms or an open dialog.
+    const interval = window.setInterval(() => {
+      if (!preview && token && document.visibilityState === 'visible' && !inFlight.current
+        && !document.querySelector('form, dialog[open]')) refresh();
+    }, 30000);
+    return () => { window.removeEventListener('focus', onFocus); window.clearInterval(interval); };
   }, [identity]);
 
   async function perform(action) {

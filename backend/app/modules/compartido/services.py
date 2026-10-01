@@ -63,6 +63,11 @@ def today():
     return datetime.now(ZoneInfo("America/Mexico_City")).date()
 
 
+def has_started(day, hour):
+    """All portal schedules use the institution's time zone, including AWS."""
+    return datetime.combine(day, hour, ZoneInfo("America/Mexico_City")) <= datetime.now(ZoneInfo("America/Mexico_City"))
+
+
 
 def fail(message, status=400):
     raise HTTPException(status_code=status, detail=message)

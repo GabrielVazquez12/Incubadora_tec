@@ -8,6 +8,7 @@ from app.initial_registration import validate_data, merge_files
 from app.modules.compartido.registration_metadata import registration_metadata
 from app.modules.compartido.services import (
     today,
+    has_started,
     fail,
     admin,
     require_admin,
@@ -64,8 +65,11 @@ def save_appointments(db, user, key, values, row, payload, new, collection):
         record(db, Usuario, user.id, lock=True)
     slot = record(db, Horario, values["slot"], lock=True)
     if new:
-        if values["estatus"] != "Confirmada" or slot.fecha < today():
+        if values["estatus"] != "Confirmada" or has_started(slot.fecha, slot.inicio):
             fail("Selecciona un horario vigente.")
+        coordinator = record(db, Usuario, slot.coordinador)
+        if coordinator.rol != RolUsuario.admin:
+            fail("El coordinador de este horario ya no está disponible.", 409)
         if db.scalar(select(Tutoria.id).where(Tutoria.slot == slot.id, Tutoria.estatus == "Confirmada").limit(1)):
             fail("El horario ya fue reservado.", 409)
         overlapping = db.scalar(select(Tutoria.id).join(Horario, Tutoria.slot == Horario.id).where(

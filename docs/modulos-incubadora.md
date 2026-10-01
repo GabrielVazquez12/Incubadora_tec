@@ -26,6 +26,10 @@ un proveedor, validar su notificacion de pago y conciliacion antes de habilitar 
 - Cada coordinador administra sus propios bloques de disponibilidad. La agenda
   general permite a coordinacion consultar y resolver sesiones.
 - Las tutorias canceladas liberan el horario; su historial impide borrar el bloque.
+- Al rechazar una solicitud con registro de origen, coordinacion debe indicar el
+  motivo. El registro vuelve a Correcciones solicitadas, conserva su historial y
+  permite modificar respuestas. Se requiere una nueva aprobacion del registro
+  antes de reenviar la solicitud; al aceptarla se crea un solo proyecto.
 - Las vistas sin formularios ni ventanas abiertas se actualizan cada 30 segundos
   mientras la pestaña esta visible. El boton Actualizar datos permite consultar
   manualmente. No es una conexion de notificaciones en tiempo real.
@@ -44,13 +48,14 @@ docker compose exec -T frontend npm run build
 Las pruebas HTTP crean y eliminan una base PostgreSQL temporal. No requieren
 credenciales de usuarios reales ni modifican la base de desarrollo.
 
-Resultado local: 18 pruebas de backend aprobadas, pruebas de horarios, borradores
+Resultado local y de la imagen final de produccion: 19 pruebas de backend aprobadas, pruebas de horarios, borradores
 y telefonos aprobadas, 53 paginas y 49 enlaces de interfaz comprobados y compilacion
 de produccion correcta. La revision visual interactiva queda pendiente: no habia
 un navegador conectado en la sesion de trabajo.
 
 Para comprobar el despliegue, `./scripts/verify-aws.ps1 -PortalFlow` prueba por HTTPS
 cuentas temporales, registro, documentos privados, avances, tareas, eventos
-gratuitos, cupos, cancelaciones y tutorias. Tambien verifica que el servidor rechace
+gratuitos, cupos, cancelaciones, tutorias y el ciclo de rechazo, correccion y
+admision de una solicitud externa. Tambien verifica que el servidor rechace
 pagos simulados en AWS. Limpia sus registros SQL y borra logicamente sus objetos S3;
 el versionado puede conservar versiones anteriores. Ejecutar deliberadamente.

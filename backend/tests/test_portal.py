@@ -360,6 +360,38 @@ class PortalTest(unittest.TestCase):
         # Datos visibles nunca incluyen hashes ni archivos completos.
         self.assertNotIn('password_hash', json.dumps(self.request("GET", "/portal/state", token=admin)))
 
+    def test_z_request_corrections_and_resubmission(self):
+        self.create_user("request_corrections", "externo")
+        token = self.login("request_corrections@example.com")
+        coordinator = self.login("admin@example.com")
+        proposal = {"nombre": "Propuesta corregible", "descripcion": "Problema inicial", "producto_servicio": "Servicio inicial"}
+        form_id = self.initial_form(token, proposal)
+        proposal["registro_id"] = form_id
+        request_id = str(uuid4())
+        path = f"/portal/requests/{request_id}"
+        self.request("PUT", path, proposal, token)
+        self.request("PUT", path, {**proposal, "estatus": "Rechazada"}, coordinator, status=422)
+        self.request("PUT", path, {**proposal, "estatus": "Rechazada", "observaciones": "Explica el producto corregido."}, coordinator)
+        state = self.request("GET", "/portal/state", token=token)["data"]
+        source = next(r for r in state["initialRegistrations"] if r["id"] == form_id)
+        self.assertEqual(source["estatus"], "Correcciones solicitadas")
+        self.assertEqual(source["observaciones"], "Explica el producto corregido.")
+        self.assertEqual(source["historial"][-1]["anterior"], "Aprobado")
+        self.request("PUT", path, proposal, token, status=422)
+        self.request("GET", f"/portal/initial-registrations/{form_id}/download", token=token, status=409)
+        corrected = {**source["datos"], "descripcion.producto": "Producto corregido"}
+        self.request("PUT", f"/portal/initialRegistrations/{form_id}", {"datos": corrected, "estatus": "Pendiente"}, token)
+        review = f"/portal/initial-registrations/{form_id}/review"
+        self.request("POST", review, {"estatus": "En revisión", "estatus_anterior": "Pendiente"}, coordinator)
+        self.request("POST", review, {"estatus": "Aprobado", "estatus_anterior": "En revisión"}, coordinator)
+        self.request("PUT", path, proposal, token)
+        self.request("PUT", path, {**proposal, "estatus": "Aprobada"}, coordinator)
+        state = self.request("GET", "/portal/state", token=token)
+        self.assertEqual(state["user"]["rol"], "estudiante")
+        projects = [p for p in state["data"]["projects"] if p["solicitud_id"] == request_id]
+        self.assertEqual(len(projects), 1)
+        self.assertEqual(projects[0]["producto_servicio"], "Producto corregido")
+
     def test_z_module_boundaries(self):
         """Two coordinators, cancellations and historical records stay consistent."""
         from app.models import Horario, Evento

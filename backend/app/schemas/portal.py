@@ -85,6 +85,7 @@ class ApplicationInput(BaseModel):
     producto_servicio: str = Field(default="", max_length=3000)
     telefono: str = Field(default="", pattern=r"^(?:[0-9+ ()-]{10,20})?$")
     estatus: Literal["En revisión", "Aprobada", "Rechazada"] = "En revisión"
+    observaciones: str = Field(default="", max_length=5000)
 
 
 class InnovationInput(BaseModel):

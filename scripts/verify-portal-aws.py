@@ -16,16 +16,17 @@ from production_start import database_url
 
 os.environ['DATABASE_URL'] = database_url(os.environ)
 from app.database import SessionLocal
-from app.models import Usuario, RolUsuario, Proyecto, RegistroInicial, Documento, Evento, Inscripcion, Pago, Horario, Tutoria
+from app.models import Usuario, RolUsuario, Proyecto, RegistroInicial, Documento, Evento, Inscripcion, Pago, Horario, Tutoria, Solicitud
 from app.initial_registration import fields, SPEC
 from app.document_storage import s3_client
 
 BASE = os.environ['PORTAL_URL'].rstrip('/')
 run_id = uuid4().hex
-emails = [f'qa-{run_id}-{role}@example.com' for role in ('student', 'coordinator', 'outsider')]
+emails = [f'qa-{run_id}-{role}@example.com' for role in ('student', 'coordinator', 'outsider', 'external')]
 password = secrets.token_urlsafe(24)
 registration_id, project_id = uuid4(), uuid4()
 event_id, slot_id = uuid4(), uuid4()
+external_registration_id, request_id = uuid4(), uuid4()
 
 
 def request(method, path, data=None, token=None, expected=200, raw=None, content_type=None):
@@ -50,12 +51,12 @@ try:
     request('GET', '/admin/dashboard', expected=401)
     for email in emails:
         request('POST', '/auth/registro', {'nombre': 'QA temporal ' + run_id[:8],
-            'correo': email, 'password': password, 'rol': 'estudiante'}, expected=201)
+            'correo': email, 'password': password, 'rol': 'externo' if email == emails[3] else 'estudiante'}, expected=201)
     with SessionLocal() as db:
         coordinator = db.query(Usuario).filter(Usuario.correo == emails[1]).one()
         coordinator.rol = RolUsuario.admin
         db.commit()
-    student, admin, outsider = [request('POST', '/auth/login', {'correo': email,
+    student, admin, outsider, external = [request('POST', '/auth/login', {'correo': email,
         'password': password})['access_token'] for email in emails]
     request('GET', '/admin/dashboard', token=student, expected=403)
     assert 'proyectos' in request('GET', '/admin/dashboard', token=admin)
@@ -139,6 +140,33 @@ try:
     request('PUT', f'/portal/appointments/{appointment_id}', {'slot': str(slot_id), 'estatus': 'Completado'}, admin)
     request('DELETE', f'/portal/slots/{slot_id}', token=admin, expected=409)
     print('Availability, exclusive booking, completion and tutoring history: OK', flush=True)
+
+    external_data = {**data, 'empresa.nombre': 'QA solicitud ' + run_id, 'principal.correo1': emails[3]}
+    request('PUT', f'/portal/initialRegistrations/{external_registration_id}',
+        {'datos': external_data, 'archivos': files, 'estatus': 'Pendiente'}, external)
+    review = f'/portal/initial-registrations/{external_registration_id}/review'
+    for status, previous in [('En revisión', 'Pendiente'), ('Aprobado', 'En revisión')]:
+        request('POST', review, {'estatus': status, 'estatus_anterior': previous}, admin)
+    proposal = {**project, 'registro_id': str(external_registration_id), 'estatus': 'En revisión'}
+    proposal_path = f'/portal/requests/{request_id}'
+    request('PUT', proposal_path, proposal, external)
+    request('PUT', proposal_path, {**proposal, 'estatus': 'Rechazada', 'observaciones': 'QA: corregir producto'}, admin)
+    external_state = request('GET', '/portal/state', token=external)['data']
+    source = next(r for r in external_state['initialRegistrations'] if r['id'] == str(external_registration_id))
+    assert source['estatus'] == 'Correcciones solicitadas'
+    assert source['observaciones'] == 'QA: corregir producto'
+    request('PUT', proposal_path, proposal, external, expected=422)
+    request('PUT', f'/portal/initialRegistrations/{external_registration_id}',
+        {'datos': {**source['datos'], 'descripcion.producto': 'QA producto corregido'}, 'estatus': 'Pendiente'}, external)
+    for status, previous in [('En revisión', 'Pendiente'), ('Aprobado', 'En revisión')]:
+        request('POST', review, {'estatus': status, 'estatus_anterior': previous}, admin)
+    request('PUT', proposal_path, proposal, external)
+    request('PUT', proposal_path, {**proposal, 'estatus': 'Aprobada'}, admin)
+    external_state = request('GET', '/portal/state', token=external)
+    assert external_state['user']['rol'] == 'estudiante'
+    linked = next(p for p in external_state['data']['projects'] if p['solicitud_id'] == str(request_id))
+    assert linked['producto_servicio'] == 'QA producto corregido'
+    print('External request rejection, correction, resubmission and admission: OK', flush=True)
 finally:
     objects = set()
     with SessionLocal() as db:
@@ -150,17 +178,21 @@ finally:
         for document in db.query(Documento).filter(Documento.proyecto_id == project_id):
             if document.clave_archivo.startswith(f'expedientes/projects/{project_id}/'):
                 objects.add((document.bucket, document.clave_archivo))
-        registration = db.get(RegistroInicial, registration_id)
-        if registration:
+        registrations = db.query(RegistroInicial).filter(RegistroInicial.id.in_([registration_id, external_registration_id])).all()
+        for registration in registrations:
             for item in registration.archivos.values():
-                if item.get('key', '').startswith(f'expedientes/registrations/{registration_id}/'):
+                if item.get('key', '').startswith(f'expedientes/registrations/{registration.id}/'):
                     objects.add((item['bucket'], item['key']))
         # Remove only this run's data; project relationships cascade to documents/history/members.
         project = db.get(Proyecto, project_id)
         if project:
             db.delete(project)
             db.flush()
-        if registration:
+        for external_project in db.query(Proyecto).filter(Proyecto.solicitud_id == request_id):
+            db.delete(external_project)
+        db.flush()
+        db.query(Solicitud).filter(Solicitud.id == request_id).delete(synchronize_session=False)
+        for registration in registrations:
             db.delete(registration)
             db.flush()
         for account in db.query(Usuario).filter(Usuario.correo.in_(emails)):

@@ -22,7 +22,16 @@ La prueba crea datos en el entorno elegido: ejecutar de forma deliberada. Puede
 repetirse usando `-Profile`, `-Region`, `-FoundationStack` y `-ApplicationStack`.
 La tarea ECS usa la imagen actualmente desplegada, sin reconstruirla.
 
-## Alertas preparadas, pendientes de activar
+## Alertas desplegadas el 1 de octubre de 2026
+
+Stack `incubadora-monitoring`: `CREATE_COMPLETE`. Presupuesto mensual
+`incubadora-monitoring-account-monthly`: USD 20 para toda la cuenta, con
+destinatario indicado por el usuario en los parametros del stack. Se conservó
+el presupuesto anterior `Escuela`. Las tres alarmas fueron creadas y al inicio
+estaban en `INSUFFICIENT_DATA`, a la espera de evaluar métricas.
+
+La entrega de alertas operativas requiere confirmar el correo de SNS. No se
+ha probado todavía la entrega de extremo a extremo.
 
 `infra/aws/monitoring.yml` incluye:
 
@@ -32,8 +41,8 @@ La tarea ECS usa la imagen actualmente desplegada, sin reconstruirla.
 - Presupuesto mensual de toda la cuenta, excluyendo creditos y reembolsos,
   con avisos al superar 80%, 100% y proyeccion superior al 100%.
 
-Faltan el correo receptor y el importe mensual elegidos por el usuario. No usar
-`admin.demo@example.com` como destino: es un correo de ejemplo, no un buzon confirmado.
+El usuario proporcionó el correo receptor y el importe mensual. El correo se
+configuró como parámetro de despliegue y no se guarda en este documento.
 El presupuesto avisa, pero no detiene recursos ni impone un limite de cobro.
 Las alarmas, SNS y la clave KMS pueden generar cargos. Los correos operativos
 requieren confirmar la suscripcion SNS; no basta con crear el stack.
@@ -93,11 +102,11 @@ fueron cero. Esto no demuestra que sus datos carezcan de valor. Su eliminación
 y respaldo final requieren una decisión explícita.
 
 Existe un presupuesto mensual `Escuela` de USD 1; no se modificó. La plantilla
-de monitoreo continúa pendiente de correo e importe elegidos por el usuario.
+de monitoreo se desplegó después con un presupuesto adicional de USD 20.
 
 ## Informacion pendiente
 
-- Correo real e importe mensual para activar alertas.
+- Confirmación de la suscripción SNS y prueba de entrega de alertas operativas.
 - Disponibilidad de capacidad para probar la restauracion RDS.
 - Dominio propio, si se desea; el dominio HTTPS de AWS ya funciona.
 - Proveedor y cuenta de pagos si se cobrara desde el portal. Los pagos demo

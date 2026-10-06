@@ -1,5 +1,10 @@
 # Boletín público
 
+Publicado y verificado en AWS el 6 de octubre de 2026. La migración
+`184ed20a6311` está aplicada en RDS y el servicio utiliza la imagen
+`release-20261006-4763ece`. La verificación HTTPS confirmó permisos,
+borradores ocultos, programación, caducidad y agenda pública.
+
 La portada da prioridad al boletín de noticias, convocatorias, avisos y próximos eventos. No enlaza a demostraciones y las rutas de vista previa no están habilitadas en la aplicación pública; únicamente se habilitan expresamente en las comprobaciones de interfaces.
 
 ## Gestión de contenido

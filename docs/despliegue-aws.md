@@ -1,5 +1,35 @@
 # Docker local y AWS con RDS
 
+## Rediseño y boletín publicados el 6 de octubre de 2026
+
+- Código: commit `4763ece`, rama `feature/kike`. Portada institucional con
+  logotipos oficiales ITS/TecNM, prioridad para noticias y agenda pública,
+  gestión editorial desde coordinación y rutas públicas de demostración retiradas.
+- Imagen `release-20261006-4763ece`, digest
+  `sha256:ded2ffe23306fee18f3c1d00312196e73488f1e987a11db77fc6d4dfc70845dd`.
+  Las 22 pruebas del backend pasaron dentro de la imagen final. La compilación
+  frontend y las comprobaciones de interfaces también pasaron.
+- Migración `184ed20a6311` aplicada en RDS con código cero por la tarea ECS
+  `21957596113e4617900aac9c82d78a45`. Incorpora publicaciones persistentes y
+  tres artículos iniciales sobre los servicios del portal, vigentes hasta el
+  6 de noviembre. Los eventos se consultan desde el catálogo existente.
+- CloudFormation `UPDATE_COMPLETE`; ECS estable con una tarea, sin pendientes,
+  revisión `:6` de `incubadora-application-web` y rollout `COMPLETED`.
+  Solo se cambió la etiqueta de imagen con la plantilla existente; el plan
+  modificó el servicio sin reemplazarlo y creó una revisión de la tarea de
+  migración. RDS, S3, IAM y red conservaron su configuración.
+- HTTPS: portada, `/health`, `/api/health`, `/api/public/newsletter`,
+  `/brand/its.png`, `/brand/tecnm.png` y `/assets/index-D7dQ9aPA.js` responden
+  correctamente. El JavaScript publicado contiene la nueva portada editorial.
+- `scripts/verify-aws.ps1 -PortalFlow` terminó con código cero en la tarea
+  `60077a6a26154f788ac08a33ce680bc4`. Verificó RDS con TLS, rol ECS, S3 AES256,
+  boletín público, permisos editoriales, borradores ocultos, programación,
+  caducidad, agenda pública y los flujos del portal. Los registros SQL
+  temporales se eliminaron y los objetos S3 se borraron lógicamente.
+- Publicación: https://in-eba33374426a491eac5ff2c493e78050.ecs.us-east-1.on.aws
+  Administración del contenido: **Coordinador → Boletín**. Detalles en
+  [gestión del boletín](boletin.md).
+
 ## Actualización publicada el 6 de octubre de 2026
 
 - Código de módulos: commit `e275223`, rama `feature/kike`. Incluye revisión y

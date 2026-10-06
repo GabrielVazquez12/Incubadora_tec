@@ -7,7 +7,8 @@ import base64
 import json
 import os
 import secrets
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 from uuid import UUID, uuid4
@@ -71,17 +72,18 @@ try:
 
     request('GET', '/admin/publications', expected=401)
     request('GET', '/admin/publications', token=student, expected=403)
+    publication_day = datetime.now(ZoneInfo('America/Mexico_City')).date()
     publication = {'titulo': 'QA temporal ' + run_id, 'resumen': 'Verificación automática',
         'contenido': 'Publicación temporal de verificación; no es una convocatoria.',
-        'categoria': 'Aviso', 'fecha': date.today().isoformat(), 'vence': None,
+        'categoria': 'Aviso', 'fecha': publication_day.isoformat(), 'vence': None,
         'publicada': False, 'destacada': False}
     publication_id = UUID(request('POST', '/admin/publications', publication, admin, expected=201)['id'])
     public = request('GET', '/public/newsletter')
     assert not any(p['id'] == str(publication_id) for p in public['publicaciones'])
-    scheduled = {**publication, 'publicada': True, 'fecha': (date.today() + timedelta(days=1)).isoformat()}
+    scheduled = {**publication, 'publicada': True, 'fecha': (publication_day + timedelta(days=1)).isoformat()}
     request('PUT', f'/admin/publications/{publication_id}', scheduled, admin)
     assert not any(p['id'] == str(publication_id) for p in request('GET', '/public/newsletter')['publicaciones'])
-    expired = {**publication, 'publicada': True, 'fecha': (date.today() - timedelta(days=2)).isoformat(), 'vence': (date.today() - timedelta(days=1)).isoformat()}
+    expired = {**publication, 'publicada': True, 'fecha': (publication_day - timedelta(days=2)).isoformat(), 'vence': (publication_day - timedelta(days=1)).isoformat()}
     request('PUT', f'/admin/publications/{publication_id}', expired, admin)
     assert not any(p['id'] == str(publication_id) for p in request('GET', '/public/newsletter')['publicaciones'])
     assert 'users' not in public and 'eventos' in public

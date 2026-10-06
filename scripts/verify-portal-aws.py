@@ -263,7 +263,7 @@ finally:
     objects = set()
     with SessionLocal() as db:
         from sqlalchemy import or_
-        for image in db.query(EditorialImage).filter(or_(EditorialImage.publicacion_id == publication_id, EditorialImage.evento_id == event_id)):
+        for image in db.query(EditorialImage).filter(or_(EditorialImage.publicacion_id == publication_id if publication_id else False, EditorialImage.evento_id == event_id)):
             objects.add((image.bucket, image.clave_archivo))
         if publication_id:
             db.query(Publication).filter(Publication.id == publication_id).delete(synchronize_session=False)

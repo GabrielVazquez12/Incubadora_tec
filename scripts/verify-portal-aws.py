@@ -16,7 +16,7 @@ from production_start import database_url
 
 os.environ['DATABASE_URL'] = database_url(os.environ)
 from app.database import SessionLocal
-from app.models import Usuario, RolUsuario, Proyecto, RegistroInicial, Documento, Evento, Inscripcion, Pago, Horario, Tutoria, Solicitud
+from app.models import Usuario, RolUsuario, Proyecto, RegistroInicial, Documento, Evento, Inscripcion, Pago, Horario, Tutoria, Solicitud, Innovacion
 from app.initial_registration import fields, SPEC
 from app.document_storage import s3_client
 
@@ -27,6 +27,7 @@ password = secrets.token_urlsafe(24)
 registration_id, project_id = uuid4(), uuid4()
 event_id, slot_id = uuid4(), uuid4()
 external_registration_id, request_id = uuid4(), uuid4()
+innovation_id = uuid4()
 
 
 def request(method, path, data=None, token=None, expected=200, raw=None, content_type=None):
@@ -132,6 +133,47 @@ try:
     assert not any(p['event'] == str(event_id) for p in request('GET', '/portal/state', token=student)['data']['payments'])
     print('Free events, capacity, cancellation and disabled real payments: OK', flush=True)
 
+    request('PUT', f'/portal/events/{event_id}', event, admin)
+    request('POST', f'/portal/events/{event_id}/register', {}, student)
+    participation = next(r for r in request('GET', '/portal/state', token=student)['data']['registrations'] if r['event'] == str(event_id))
+    attendance = f"/portal/registrations/{participation['id']}/attendance"
+    certificate = f"/portal/registrations/{participation['id']}/certificate"
+    request('GET', certificate, token=student, expected=409)
+    request('GET', certificate, token=outsider, expected=403)
+    request('POST', attendance, {'asistio': True}, student, expected=403)
+    request('POST', attendance, {'asistio': True}, admin, expected=409)
+    with SessionLocal() as db:
+        db.get(Evento, event_id).fecha = date.today() - timedelta(days=1)
+        db.commit()
+    request('POST', attendance, {'asistio': True}, admin)
+    assert request('GET', certificate, token=student).startswith(b'%PDF-')
+    request('DELETE', f"/portal/registrations/{participation['id']}", token=student, expected=409)
+    request('POST', attendance, {'asistio': False}, admin)
+    request('GET', certificate, token=student, expected=409)
+    request('DELETE', f"/portal/registrations/{participation['id']}", token=student)
+    print('Verified attendance, private PDF certificates, correction and record protection: OK', flush=True)
+
+    innovation = {'nombre': 'QA innovación ' + run_id, 'equipo': 'QA equipo', 'lider': 'QA líder',
+        'asesor': 'QA asesor', 'descripcion': 'Propuesta temporal de validación', 'modulo': 'InnoBótica',
+        'categoria': 'Robots Minisumo', 'estatus': 'Borrador', 'etapa': 'Local'}
+    innovation_path = f'/portal/innovation/{innovation_id}'
+    request('PUT', innovation_path, innovation, student)
+    request('PUT', innovation_path, {**innovation, 'estatus_anterior': 'Borrador'}, outsider, expected=403)
+    request('PUT', innovation_path, {**innovation, 'estatus': 'En revisión', 'estatus_anterior': 'Borrador'}, student)
+    request('PUT', innovation_path, {**innovation, 'estatus_anterior': 'En revisión'}, student, expected=409)
+    request('PUT', innovation_path, {**innovation, 'estatus': 'Correcciones solicitadas',
+        'estatus_anterior': 'En revisión', 'observaciones': 'QA: aclarar diseño'}, admin)
+    request('PUT', innovation_path, {**innovation, 'descripcion': 'QA diseño corregido',
+        'estatus': 'En revisión', 'estatus_anterior': 'Correcciones solicitadas'}, student)
+    request('PUT', innovation_path, {**innovation, 'estatus': 'Aprobada',
+        'estatus_anterior': 'En revisión'}, admin)
+    request('PUT', innovation_path, {**innovation, 'estatus': 'Aprobada', 'etapa': 'Regional',
+        'estatus_anterior': 'Aprobada'}, admin)
+    proposal_record = next(r for r in request('GET', '/portal/state', token=student)['data']['innovation'] if r['id'] == str(innovation_id))
+    assert proposal_record['descripcion'] == 'QA diseño corregido'
+    assert proposal_record['etapa'] == 'Regional' and len(proposal_record['historial']) == 6
+    print('Innovation submission, correction, approval, stages, history and isolation: OK', flush=True)
+
     request('PUT', f'/portal/slots/{slot_id}', {'fecha': future, 'inicio': '10:00', 'fin': '11:00'}, admin)
     appointment_id = uuid4()
     request('PUT', f'/portal/appointments/{appointment_id}', {'slot': str(slot_id)}, student)
@@ -170,6 +212,7 @@ try:
 finally:
     objects = set()
     with SessionLocal() as db:
+        db.query(Innovacion).filter(Innovacion.id == innovation_id).delete(synchronize_session=False)
         db.query(Tutoria).filter(Tutoria.slot == slot_id).delete(synchronize_session=False)
         db.query(Horario).filter(Horario.id == slot_id).delete(synchronize_session=False)
         db.query(Inscripcion).filter(Inscripcion.event == event_id).delete(synchronize_session=False)

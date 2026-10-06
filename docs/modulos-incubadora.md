@@ -2,8 +2,9 @@
 
 ## Alcance verificado
 
-Las rutas autenticadas utilizan la API y PostgreSQL. `/vista-previa` conserva
-datos de demostracion; no usarla para comprobar persistencia.
+Las rutas autenticadas utilizan la API y PostgreSQL. La aplicacion publica
+no expone rutas de vista previa. El boletin se administra desde coordinacion;
+ver [gestion del boletin](boletin.md).
 
 | Modulo | Operaciones | Comprobacion |
 |---|---|---|

@@ -33,14 +33,14 @@ function portalRoutes(role, preview) {
   </Route>;
 }
 
-export function AppRoutes() {
+export function AppRoutes({ enablePreview = false }) {
   return <Routes>
     <Route path="/" element={<Landing />} />
     <Route path="/login" element={<Login />} />
     <Route path="/registro" element={<Registro />} />
-    <Route path="/vista-previa" element={<Navigate to="/vista-previa/emprendedor/inicio" replace />} />
-    {[false, true].flatMap(preview => ['estudiante', 'admin', 'externo'].map(role => portalRoutes(role, preview)))}
-    {[false, true].map(preview => <Route key={`innovation-${preview}`} path={`${preview ? '/vista-previa' : ''}/innovatecnm`} element={preview ? <InnovationLayout preview /> : <RutaProtegida rolesPermitidos={['admin', 'estudiante']}><InnovationLayout /></RutaProtegida>}>
+    {enablePreview && <Route path="/vista-previa" element={<Navigate to="/vista-previa/emprendedor/inicio" replace />} />}
+    {(enablePreview ? [false, true] : [false]).flatMap(preview => ['estudiante', 'admin', 'externo'].map(role => portalRoutes(role, preview)))}
+    {(enablePreview ? [false, true] : [false]).map(preview => <Route key={`innovation-${preview}`} path={`${preview ? '/vista-previa' : ''}/innovatecnm`} element={preview ? <InnovationLayout preview /> : <RutaProtegida rolesPermitidos={['admin', 'estudiante']}><InnovationLayout /></RutaProtegida>}>
       <Route index element={<Navigate to="inicio" replace />} />
       {['inicio', 'certamen', 'hackatec', 'innobotica', 'innovaccion', 'retos', 'registros'].map(section => <Route key={section} path={section} element={<Innovation section={section} />} />)}
     </Route>)}

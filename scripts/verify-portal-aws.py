@@ -16,7 +16,7 @@ from production_start import database_url
 
 os.environ['DATABASE_URL'] = database_url(os.environ)
 from app.database import SessionLocal
-from app.models import Usuario, RolUsuario, Proyecto, RegistroInicial, Documento, Evento, Inscripcion, Pago, Horario, Tutoria, Solicitud, Innovacion
+from app.models import Usuario, RolUsuario, Proyecto, RegistroInicial, Documento, Evento, Inscripcion, Pago, Horario, Tutoria, Solicitud, Innovacion, Publication
 from app.initial_registration import fields, SPEC
 from app.document_storage import s3_client
 import verify_deployment
@@ -33,6 +33,7 @@ registration_id, project_id = uuid4(), uuid4()
 event_id, slot_id = uuid4(), uuid4()
 external_registration_id, request_id = uuid4(), uuid4()
 innovation_id = uuid4()
+publication_id = None
 
 
 def request(method, path, data=None, token=None, expected=200, raw=None, content_type=None):
@@ -67,6 +68,24 @@ try:
     request('GET', '/admin/dashboard', token=student, expected=403)
     assert 'proyectos' in request('GET', '/admin/dashboard', token=admin)
     print('Coordinator access and student access restrictions: OK', flush=True)
+
+    request('GET', '/admin/publications', expected=401)
+    request('GET', '/admin/publications', token=student, expected=403)
+    publication = {'titulo': 'QA temporal ' + run_id, 'resumen': 'Verificación automática',
+        'contenido': 'Publicación temporal de verificación; no es una convocatoria.',
+        'categoria': 'Aviso', 'fecha': date.today().isoformat(), 'vence': None,
+        'publicada': False, 'destacada': False}
+    publication_id = UUID(request('POST', '/admin/publications', publication, admin, expected=201)['id'])
+    public = request('GET', '/public/newsletter')
+    assert not any(p['id'] == str(publication_id) for p in public['publicaciones'])
+    scheduled = {**publication, 'publicada': True, 'fecha': (date.today() + timedelta(days=1)).isoformat()}
+    request('PUT', f'/admin/publications/{publication_id}', scheduled, admin)
+    assert not any(p['id'] == str(publication_id) for p in request('GET', '/public/newsletter')['publicaciones'])
+    expired = {**publication, 'publicada': True, 'fecha': (date.today() - timedelta(days=2)).isoformat(), 'vence': (date.today() - timedelta(days=1)).isoformat()}
+    request('PUT', f'/admin/publications/{publication_id}', expired, admin)
+    assert not any(p['id'] == str(publication_id) for p in request('GET', '/public/newsletter')['publicaciones'])
+    assert 'users' not in public and 'eventos' in public
+    print('Public newsletter, editorial permissions, hidden drafts, scheduling and expiration: OK', flush=True)
 
     data = {'identificacion.numero_solicitantes': '1'}
     for key, field in list(fields(data)):
@@ -128,6 +147,7 @@ try:
         'tipo': state['eventTypes'][0], 'fecha': future, 'hora': '10:00', 'cupo': 1,
         'precio': 0, 'modalidad': 'En línea', 'estatus': 'Activo'}
     request('PUT', f'/portal/events/{event_id}', event, admin)
+    assert any(e['id'] == str(event_id) for e in request('GET', '/public/newsletter')['eventos'])
     assert request('POST', f'/portal/events/{event_id}/register', {}, student)['confirmed']
     request('POST', f'/portal/events/{event_id}/register', {}, outsider, expected=409)
     registration = next(r for r in request('GET', '/portal/state', token=student)['data']['registrations'] if r['event'] == str(event_id))
@@ -217,6 +237,8 @@ try:
 finally:
     objects = set()
     with SessionLocal() as db:
+        if publication_id:
+            db.query(Publication).filter(Publication.id == publication_id).delete(synchronize_session=False)
         db.query(Innovacion).filter(Innovacion.id == innovation_id).delete(synchronize_session=False)
         db.query(Tutoria).filter(Tutoria.slot == slot_id).delete(synchronize_session=False)
         db.query(Horario).filter(Horario.id == slot_id).delete(synchronize_session=False)

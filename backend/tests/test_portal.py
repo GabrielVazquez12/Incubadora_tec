@@ -48,7 +48,8 @@ class PortalTest(unittest.TestCase):
         cls.log = tempfile.TemporaryFile(mode="w+")
         cls.server = subprocess.Popen([sys.executable, "-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", str(port)], env=cls.env, stdout=cls.log, stderr=cls.log)
         cls.addClassCleanup(cls.stop_server)
-        for _ in range(100):
+        deadline = time.monotonic() + 120
+        while time.monotonic() < deadline:
             try:
                 with urlopen(cls.base + "/health", timeout=1):
                     break
@@ -58,12 +59,17 @@ class PortalTest(unittest.TestCase):
                     raise RuntimeError(cls.log.read())
                 time.sleep(0.1)
         else:
-            raise RuntimeError("La API de pruebas no inició")
+            cls.log.seek(0)
+            raise RuntimeError("La API de pruebas no inició: " + cls.log.read())
 
     @classmethod
     def stop_server(cls):
         cls.server.terminate()
-        cls.server.wait(timeout=10)
+        try:
+            cls.server.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            cls.server.kill()
+            cls.server.wait(timeout=10)
         cls.log.close()
 
     @classmethod
@@ -360,6 +366,39 @@ class PortalTest(unittest.TestCase):
         self.request("PUT", f"/portal/users/{alice['id']}", {**alice, "rol": "admin"}, a, status=403)
         # Datos visibles nunca incluyen hashes ni archivos completos.
         self.assertNotIn('password_hash', json.dumps(self.request("GET", "/portal/state", token=admin)))
+
+    def test_public_newsletter_visibility_permissions_and_agenda(self):
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        day = datetime.now(ZoneInfo('America/Mexico_City')).date()
+        coordinator = self.login('admin@example.com')
+        self.create_user('newsletter_student')
+        student = self.login('newsletter_student@example.com')
+        payload = dict(titulo='Noticias de prueba', resumen='Resumen', contenido='Contenido completo', categoria='Noticia', fecha=day.isoformat(), vence=None, publicada=True, destacada=True)
+        self.request('GET', '/admin/publications', status=401)
+        self.request('GET', '/admin/publications', token=student, status=403)
+        self.request('POST', '/admin/publications', payload, student, status=403)
+        publication = self.request('POST', '/admin/publications', payload, coordinator, status=201)
+        key = publication['id']
+        for overrides, visible in [({}, True), ({'publicada': False}, False), ({'fecha': (day + timedelta(days=1)).isoformat()}, False), ({'fecha': (day - timedelta(days=2)).isoformat(), 'vence': (day - timedelta(days=1)).isoformat()}, False), ({'vence': day.isoformat()}, True)]:
+            self.request('PUT', f'/admin/publications/{key}', {**payload, **overrides}, coordinator)
+            feed = self.request('GET', '/public/newsletter')
+            self.assertEqual(any(n['id'] == key for n in feed['publicaciones']), visible)
+        self.request('POST', '/admin/publications', {**payload, 'vence': (day - timedelta(days=1)).isoformat()}, coordinator, status=422)
+        self.request('POST', '/admin/publications', {**payload, 'titulo': '   '}, coordinator, status=422)
+        self.request('PUT', f'/admin/publications/{uuid4()}', payload, coordinator, status=404)
+        self.request('POST', '/portal/event-types', {'nombre': 'Agenda pública'}, coordinator)
+        event = dict(nombre='Evento público de prueba', descripcion='Descripción pública', tipo='Agenda pública', fecha=(day + timedelta(days=2)).isoformat(), hora='10:00', cupo=20, precio=0, modalidad='Presencial', estatus='Activo')
+        event_ids = [str(uuid4()) for _ in range(3)]
+        for eid, overrides in zip(event_ids, [{}, {'fecha': (day - timedelta(days=1)).isoformat()}, {'estatus': 'Inactivo'}]):
+            self.request('PUT', f'/portal/events/{eid}', {**event, **overrides}, coordinator)
+        feed = self.request('GET', '/public/newsletter')
+        ids = [e['id'] for e in feed['eventos']]
+        self.assertIn(event_ids[0], ids)
+        self.assertNotIn(event_ids[1], ids)
+        self.assertNotIn(event_ids[2], ids)
+        self.assertNotIn('users', feed)
+        self.assertNotIn('inscripciones', json.dumps(feed))
 
     def test_event_attendance_certificates_and_permissions(self):
         from app.models import Evento, Inscripcion

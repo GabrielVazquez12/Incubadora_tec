@@ -7,6 +7,7 @@ from app.modules.coordinacion import routes as admin, portal_routes as coordinat
 from app.modules.estudiantes import portal_routes as students
 from app.modules.compartido import routes as portal
 from app.modules.compartido import documents
+from app.modules.compartido import newsletter
 from botocore.exceptions import BotoCoreError, ClientError
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
@@ -29,6 +30,7 @@ app.include_router(portal.router)
 app.include_router(coordination.router)
 app.include_router(students.router)
 app.include_router(documents.router)
+app.include_router(newsletter.router)
 
 
 @app.exception_handler(BotoCoreError)

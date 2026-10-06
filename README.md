@@ -211,6 +211,7 @@ VITE_API_URL=http://localhost:8000
 - [x] Dashboard y reportes para coordinadoras
 - [x] Portada institucional con logotipos oficiales ITS y TecNM
 - [x] Boletín público de noticias, avisos, convocatorias y eventos vigentes; gestión desde coordinación
+- [x] Galerías de imágenes y flyers en noticias y eventos, con ampliación, descripción accesible y almacenamiento privado en S3
 - [ ] Integración de pagos (sandbox)
 - [x] Deploy en AWS con HTTPS, RDS privada y documentos S3; actualización verificada el 6 de octubre de 2026
 

@@ -1,5 +1,33 @@
 # Docker local y AWS con RDS
 
+## Galerías publicadas el 6 de octubre de 2026
+
+- Código: `2323f2b`, rama `feature/kike`. Noticias y eventos admiten hasta
+  cinco imágenes o flyers, con descripción accesible, ampliación y retirada.
+  Los borradores conservan sus imágenes privadas; no se añadieron flyers ficticios.
+- Imagen `release-20261006-2323f2b`, digest
+  `sha256:8d5b24e34e1f7bd4a4ac8d229867e3b1a94deba0979035a381f86379520653a7`.
+  Las 23 pruebas del backend pasaron dentro de la imagen final; también la
+  compilación frontend y las comprobaciones de interfaces. Una descarga de
+  PyPI agotó el tiempo de espera: se reutilizó la imagen verificada anterior,
+  comprobando todas las versiones fijadas antes de copiar el código y compilar
+  el frontend. `Dockerfile.production` conserva su construcción habitual.
+- Migración `295fe31b7422` aplicada con código cero por la tarea
+  `0788fdd612bb4fc8a395050a9c66e2d8`. Añade `imagenes_editoriales` sin modificar
+  noticias, eventos ni usuarios existentes.
+- CloudFormation terminó la actualización y ECS quedó estable en revisión
+  `:7`, rollout `COMPLETED`, una tarea activa y ninguna pendiente. Solo se
+  actualizó la imagen; se conservaron RDS, S3, IAM y red.
+- HTTPS devuelve `200` y sirve `/assets/index-DscSrznu.js`; `/api/health`
+  responde `ok`. El boletín conserva tres publicaciones y el evento existente.
+- `scripts/verify-aws.ps1 -PortalFlow` terminó con código cero en la tarea
+  `c198c0d6c40041f0861b1482f717dd8d`: imágenes normalizadas, almacenamiento S3
+  AES256, lectura, retirada, permisos y visibilidad editorial correctos,
+  además de los flujos completos del portal. Se limpiaron los registros SQL
+  temporales y se borraron lógicamente los objetos S3 de prueba.
+- Uso: **Coordinador → Boletín / Eventos → Editar → Imágenes y flyers**.
+  Formatos y límites en [gestión del boletín](boletin.md).
+
 ## Rediseño y boletín publicados el 6 de octubre de 2026
 
 - Código: commit `4763ece`, rama `feature/kike`. Portada institucional con

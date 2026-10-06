@@ -1,4 +1,5 @@
 import re
+import stripe  # <-- NUEVA IMPORTACIÓN
 from app.modules.compartido.registration_word import build_registration_word, WORD_MIME
 import base64
 from uuid import UUID
@@ -79,7 +80,6 @@ def state(db: Session = Depends(get_db), user: Usuario = Depends(get_current_use
     pids = [p.id for p in projects]
     members = db.scalars(select(IntegranteProyecto).where(IntegranteProyecto.proyecto_id.in_(pids))).all()
     documents = db.scalars(select(Documento).options(defer(Documento.contenido)).where(Documento.proyecto_id.in_(pids))).all()
-    # Solo incluir metadatos; los archivos se descargan con autorización independiente.
     file_ids = set(db.scalars(select(Documento.id).where(Documento.proyecto_id.in_(pids), or_(Documento.contenido.is_not(None), Documento.clave_archivo.startswith("expedientes/")))).all())
     users_query = select(Usuario)
     visible = {user.id, *(p.usuario_id for p in projects), *(m.usuario_id for m in members)}
@@ -112,7 +112,6 @@ def state(db: Session = Depends(get_db), user: Usuario = Depends(get_current_use
         result[collection] = [serialized(row) for row in db.scalars(query)]
     counts = dict(db.execute(select(Inscripcion.event, func.count()).where(Inscripcion.estatus == "Confirmada").group_by(Inscripcion.event)).all())
     for event in result["events"]:
-        # occupied() en React añade las inscripciones visibles del usuario.
         visible_count = sum(r["event"] == event["id"] and r["estatus"] == "Confirmada" for r in result["registrations"])
         event["ocupados"] = counts.get(UUID(event["id"]), 0) - visible_count
     booked = set(db.scalars(select(Tutoria.slot).where(Tutoria.estatus == "Confirmada")))
@@ -171,6 +170,75 @@ def register(key: UUID, payload: RegistrationInput, db: Session = Depends(get_db
     db.commit()
     return {"confirmed": True}
 
+
+# ==========================================
+# NUEVO ENDPOINT: INTEGRACIÓN CON STRIPE
+# ==========================================
+@router.post("/events/{key}/checkout")
+def create_checkout_session(key: UUID, db: Session = Depends(get_db), user: Usuario = Depends(get_current_user)):
+    event = record(db, Evento, key, lock=True)
+    
+    if event.estatus != "Activo" or event.fecha < today():
+        fail("Las inscripciones están cerradas.")
+    
+    if db.scalar(select(Inscripcion.id).where(Inscripcion.event == key, Inscripcion.user == user.id)):
+        fail("Ya tienes una inscripción en este evento.", 409)
+        
+    count = db.scalar(select(func.count()).select_from(Inscripcion).where(Inscripcion.event == key, Inscripcion.estatus == "Confirmada"))
+    if count >= event.cupo:
+        fail("El evento ya no tiene cupo.", 409)
+        
+    # Verificar que el config tenga la variable de Stripe
+    stripe_key = getattr(settings, "stripe_secret_key", "sk_test_123456789")
+    stripe.api_key = stripe_key
+    
+    # Crear el pago en la BD como "Pendiente"
+    pago = Pago(
+        event=key, 
+        user=user.id, 
+        importe=event.precio, 
+        fecha=today(), 
+        estatus="Pendiente", 
+        modo="stripe"
+    )
+    db.add(pago)
+    db.flush() # Genera el UUID temporalmente
+    
+    try:
+        frontend_url = "http://localhost:5173" 
+        
+        session = stripe.checkout.Session.create(
+            payment_method_types=['card'],
+            line_items=[{
+                'price_data': {
+                    'currency': 'mxn',
+                    'product_data': {
+                        'name': f"Inscripción: {event.nombre}",
+                    },
+                    'unit_amount': int(event.precio * 100), 
+                },
+                'quantity': 1,
+            }],
+            mode='payment',
+            success_url=f"{frontend_url}/eventos?session_id={{CHECKOUT_SESSION_ID}}&status=success",
+            cancel_url=f"{frontend_url}/eventos?status=canceled",
+            metadata={
+                "event_id": str(key),
+                "user_id": str(user.id),
+                "pago_id": str(pago.id)
+            }
+        )
+        
+        # Guardar ID de Stripe en la BD
+        pago.referencia_pasarela = session.id
+        db.commit()
+        
+        return {"url": session.url}
+        
+    except Exception as e:
+        db.rollback()
+        fail(f"Error al conectar con la pasarela de pagos: {str(e)}", 500)
+# ==========================================
 
 
 @router.delete("/{collection}/{key}")

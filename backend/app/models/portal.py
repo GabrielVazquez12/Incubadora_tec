@@ -59,7 +59,7 @@ class Pago(Identified, Base):
     estatus = Column(String, nullable=False)
     fecha = Column(Date, nullable=False)
     modo = Column(String, nullable=False, default="prueba", server_default="prueba")
-
+    referencia_pasarela = Column(String, nullable=True)
 
 class Horario(Identified, Base):
     __tablename__ = "horarios"

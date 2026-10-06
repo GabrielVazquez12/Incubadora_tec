@@ -1,6 +1,7 @@
 import re
 from app.modules.compartido.registration_word import build_registration_word, WORD_MIME
 import base64
+from datetime import datetime, timezone
 from uuid import UUID
 from fastapi import APIRouter, Depends, Response
 from pydantic import ValidationError
@@ -28,7 +29,7 @@ from app.models import (
     Innovacion,
     RegistroInicial,
 )
-from app.schemas.portal import RegistrationInput
+from app.schemas.portal import RegistrationInput, AttendanceInput
 from app.modules.compartido.services import (
     today,
     has_started,
@@ -188,6 +189,7 @@ def delete(collection: str, key: UUID, db: Session = Depends(get_db), user: Usua
                       (Inscripcion, Inscripcion.user), (Pago, Pago.user), (Horario, Horario.coordinador),
                       (Tutoria, Tutoria.user), (Solicitud, Solicitud.user), (Innovacion, Innovacion.user),
                       (RegistroInicial, RegistroInicial.user)]
+        references.append((Inscripcion, Inscripcion.asistencia_por))
         if any(db.scalar(select(func.count()).select_from(model).where(column == key)) for model, column in references):
             fail("El usuario tiene registros asociados; conserva su cuenta e historial.", 409)
     elif collection == "slots":
@@ -199,6 +201,8 @@ def delete(collection: str, key: UUID, db: Session = Depends(get_db), user: Usua
     else:
         if not admin(user) and row.user != user.id:
             fail("No puedes cancelar esta inscripción.", 403)
+        if row.asistio:
+            fail("La inscripción tiene asistencia confirmada; conserva su constancia. Coordinación puede corregir la asistencia.", 409)
         record(db, Evento, row.event, lock=True)
         paid = db.scalars(select(Pago).where(Pago.event == row.event, Pago.user == row.user, Pago.estatus == "Pagado")).all()
         if any(payment.modo != "prueba" for payment in paid):
@@ -208,6 +212,33 @@ def delete(collection: str, key: UUID, db: Session = Depends(get_db), user: Usua
     db.delete(row)
     db.commit()
     return {"deleted": True}
+
+
+@router.post("/registrations/{key}/attendance")
+def attendance(key: UUID, payload: AttendanceInput, db: Session = Depends(get_db), user: Usuario = Depends(get_current_user)):
+    require_admin(user)
+    row = record(db, Inscripcion, key, lock=True)
+    event = record(db, Evento, row.event, lock=True)
+    if row.estatus != "Confirmada" or not has_started(event.fecha, event.hora):
+        fail("La asistencia se confirma después de iniciar el evento y requiere una inscripción confirmada.", 409)
+    row.asistio = payload.asistio
+    row.asistencia_por = user.id
+    row.asistencia_fecha = datetime.now(timezone.utc)
+    db.commit()
+    return {"id": str(row.id), "asistio": row.asistio}
+
+
+@router.get("/registrations/{key}/certificate")
+def event_certificate(key: UUID, db: Session = Depends(get_db), user: Usuario = Depends(get_current_user)):
+    row = record(db, Inscripcion, key)
+    if not admin(user) and row.user != user.id:
+        fail("No tienes acceso a esta constancia.", 403)
+    event = record(db, Evento, row.event)
+    if row.estatus != "Confirmada" or not row.asistio or not has_started(event.fecha, event.hora):
+        fail("La constancia requiere asistencia confirmada por coordinación.", 409)
+    from app.modules.compartido.event_certificates import build_event_certificate
+    participant = record(db, Usuario, row.user)
+    return download_response(build_event_certificate(row, event, participant), "application/pdf", f"constancia-{row.id}.pdf")
 
 
 

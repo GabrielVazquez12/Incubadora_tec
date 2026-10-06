@@ -97,6 +97,13 @@ export function PortalProvider({ children }) {
         const saved = collection === 'initialRegistrations'
           ? { ...item, datos: { ...item.datos, ...previewRegistrationMetadata(rows, existing) } }
           : item;
+        if (collection === 'innovation') {
+          saved.observaciones = item.observaciones || existing?.observaciones || '';
+          if (!existing || existing.estatus !== item.estatus || existing.etapa !== item.etapa) {
+            saved.historial = [...(existing?.historial || []), { anterior: existing?.estatus || null, estatus: item.estatus,
+              etapa: item.etapa, observaciones: saved.observaciones, nombre: 'Cuenta de demostración', fecha: new Date().toISOString() }];
+          }
+        }
         return { ...previous, [collection]: existing ? rows.map(row => row.id === item.id ? { ...row, ...saved } : row) : [...rows, saved] };
       });
       return true;
@@ -122,6 +129,28 @@ export function PortalProvider({ children }) {
   async function addType(nombre) {
     if (preview) { setData(previous => ({ ...previous, eventTypes: [...previous.eventTypes, nombre] })); return true; }
     return (await perform(() => api.post('/portal/event-types', { nombre }))) !== null;
+  }
+  async function confirmAttendance(id, asistio) {
+    if (preview) {
+      setData(previous => ({ ...previous, registrations: previous.registrations.map(r => r.id === id ? { ...r, asistio } : r) }));
+      return true;
+    }
+    return (await perform(() => api.post(`/portal/registrations/${id}/attendance`, { asistio }))) !== null;
+  }
+  async function downloadCertificate(registration) {
+    if (preview) { notify('Las constancias se descargan desde el portal con asistencia real confirmada.'); return false; }
+    try {
+      const response = await api.get(`/portal/registrations/${registration.id}/certificate`, { responseType: 'blob' });
+      const url = URL.createObjectURL(response.data);
+      const link = document.createElement('a'); link.href = url; link.download = `constancia-${registration.id}.pdf`; link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      return true;
+    } catch (err) {
+      let detail;
+      try { detail = JSON.parse(await err.response?.data?.text()).detail; } catch { /* Sin cuerpo JSON. */ }
+      setError(typeof detail === 'string' ? detail : 'No se pudo descargar la constancia. Inténtalo de nuevo.');
+      return false;
+    }
   }
   async function addMember(project, correo) {
     if (preview) { notify('Los integrantes se gestionan en el portal con sesión iniciada.'); return false; }
@@ -183,6 +212,6 @@ export function PortalProvider({ children }) {
     } catch { setError('No se pudo descargar el anexo.'); }
   }
   return <Context.Provider value={{ data, user, preview, notice, notify, error, busy, loading: loadedFor !== identity,
-    paymentsMode, update, remove, register, addType, addMember, downloadFile, downloadRegistration, downloadRegistrationFile, reviewRegistration, uploadDocument, reviewDocument, refresh }}>{children}</Context.Provider>;
+    paymentsMode, update, remove, register, addType, confirmAttendance, downloadCertificate, addMember, downloadFile, downloadRegistration, downloadRegistrationFile, reviewRegistration, uploadDocument, reviewDocument, refresh }}>{children}</Context.Provider>;
 }
 export const usePortal = () => useContext(Context);

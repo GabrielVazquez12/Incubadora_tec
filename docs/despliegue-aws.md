@@ -1,5 +1,39 @@
 # Docker local y AWS con RDS
 
+## Actualización publicada el 6 de octubre de 2026
+
+- Código de módulos: commit `e275223`, rama `feature/kike`. Incluye revisión y
+  correcciones de Innovación, asistencia de eventos y constancias PDF privadas.
+- Imagen ECR inmutable: `release-20261006-e275223`, digest
+  `sha256:290a464a9e8b1bfba473eb6b94bd6b12326fcb26273eaa0196e32d1f7ddee257`.
+  La imagen final pasó las 21 pruebas del backend antes de publicarse.
+- Migración `073dc19b5210` aplicada mediante una tarea ECS independiente con
+  el usuario de aplicación y sin credenciales administrativas RDS. Terminó
+  con código cero; el servicio anterior permaneció activo durante la migración.
+- CloudFormation utilizó la plantilla y parámetros existentes, cambiando solo
+  `ImageTag`. El change set mostró modificación del servicio sin reemplazo y
+  una nueva revisión de la definición de tarea de migración. No modificó
+  recursos de RDS, S3, IAM o red.
+- Stack `incubadora-application`: `UPDATE_COMPLETE`. ECS quedó estable con una
+  sola tarea en la revisión `:5` de `incubadora-application-web`. La publicación
+  gradual conservó el 5% de tráfico durante tres minutos y tres minutos de
+  observación según la configuración existente del servicio.
+- HTTPS: `/health` y `/api/health` responden `ok`. La página y el JavaScript
+  `index-D7knEG03.js` responden `200`; OpenAPI expone asistencia y constancias.
+- `./scripts/verify-aws.ps1 -PortalFlow` terminó con código cero. Verificó RDS
+  con TLS, rol ECS, S3 cifrado AES256, registro/login, permisos, anexos privados,
+  proyectos, avances, tareas, eventos gratuitos, cupos y cancelaciones,
+  asistencia y constancias PDF privadas, correcciones y etapas de Innovación,
+  tutorías y rechazo/corrección/admisión de solicitudes externas.
+- Se eliminaron los registros SQL temporales de la prueba y se borraron
+  lógicamente sus objetos S3; el versionado puede conservar versiones anteriores.
+  Los pagos simulados siguen deshabilitados en AWS.
+
+Portal: https://in-eba33374426a491eac5ff2c493e78050.ecs.us-east-1.on.aws
+
+La comprobación de interfaz fue de renderizado y HTTP. Sigue pendiente una
+revisión interactiva en navegador; no se presenta como realizada.
+
 ## Arquitectura preparada
 
 El entorno habitual (`docker-compose.yml`, puerto 5173) conserva PostgreSQL

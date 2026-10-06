@@ -19,6 +19,11 @@ from app.database import SessionLocal
 from app.models import Usuario, RolUsuario, Proyecto, RegistroInicial, Documento, Evento, Inscripcion, Pago, Horario, Tutoria, Solicitud, Innovacion
 from app.initial_registration import fields, SPEC
 from app.document_storage import s3_client
+import verify_deployment
+
+# Reuse the smoke test so the full acceptance flow also verifies RDS TLS,
+# the ECS task identity, S3 encryption and a private storage round-trip.
+verify_deployment.main()
 
 BASE = os.environ['PORTAL_URL'].rstrip('/')
 run_id = uuid4().hex

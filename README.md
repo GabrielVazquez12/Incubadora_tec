@@ -210,7 +210,7 @@ VITE_API_URL=http://localhost:8000
 - [x] Constancias PDF de eventos con asistencia verificada por coordinación (sin firmas ni sellos institucionales)
 - [x] Dashboard y reportes para coordinadoras
 - [ ] Integración de pagos (sandbox)
-- [ ] Deploy en AWS
+- [x] Deploy en AWS con HTTPS, RDS privada y documentos S3; actualización verificada el 6 de octubre de 2026
 
 Consulta [documentos y anexos privados](docs/documentos.md) para configurar
 S3, aplicar la migración y usar el flujo de revisión y correcciones.

@@ -207,7 +207,7 @@ VITE_API_URL=http://localhost:8000
 - [x] Gestión de usuarios, proyectos y seguimiento con PostgreSQL
 - [x] Módulo de documentos con revisión e integración S3 configurable (validación en AWS pendiente)
 - [x] Reportes exportables a CSV para Excel
-- [ ] Generación de constancias/documentos PDF
+- [x] Constancias PDF de eventos con asistencia verificada por coordinación (sin firmas ni sellos institucionales)
 - [x] Dashboard y reportes para coordinadoras
 - [ ] Integración de pagos (sandbox)
 - [ ] Deploy en AWS

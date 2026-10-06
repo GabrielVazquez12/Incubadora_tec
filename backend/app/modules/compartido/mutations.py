@@ -3,7 +3,7 @@ from sqlalchemy import select
 import base64
 from app.config import settings
 from app.document_storage import store_bytes
-from app.models import Usuario, RolUsuario, Proyecto, Horario, Tutoria, Solicitud
+from app.models import Usuario, RolUsuario, Proyecto, Horario, Tutoria, Solicitud, Innovacion
 from app.initial_registration import validate_data, merge_files
 from app.modules.compartido.registration_metadata import registration_metadata
 from app.modules.compartido.services import (
@@ -92,9 +92,52 @@ def save_appointments(db, user, key, values, row, payload, new, collection):
 def save_innovation(db, user, key, values, row, payload, new, collection):
     if user.rol == RolUsuario.externo or (row and not admin(user) and row.user != user.id):
         fail("No tienes acceso a esta propuesta.", 403)
-    if not admin(user):
-        values.update(etapa="Local", estatus="Borrador")
+    previous = row.datos.get("estatus", "Borrador") if row else None
+    expected = values.pop("estatus_anterior")
+    observations = values.pop("observaciones").strip()
+    trail = list(row.datos.get("historial", [])) if row else []
+    if row and expected != previous:
+        fail("La propuesta cambió. Actualiza los datos antes de continuar.", 409)
+    if admin(user):
+        if new:
+            fail("La propuesta la inicia el emprendedor.", 403)
+        allowed = {
+            "En revisión": {"Aprobada", "Rechazada", "Correcciones solicitadas"},
+            "Aprobada": {"Aprobada"},
+        }
+        if values["estatus"] not in allowed.get(previous, set()):
+            fail("Solo se pueden resolver propuestas enviadas o avanzar las aprobadas.", 409)
+        if values["estatus"] in ("Rechazada", "Correcciones solicitadas") and not observations:
+            fail("Indica las observaciones para el equipo.", 422)
+        stages = ["Local", "Regional", "Nacional"]
+        current_stage = row.datos.get("etapa", "Local")
+        if values["estatus"] != "Aprobada" and values["etapa"] != current_stage:
+            fail("Aprueba la propuesta antes de cambiar su etapa.", 409)
+        if stages.index(values["etapa"]) < stages.index(current_stage) or stages.index(values["etapa"]) > stages.index(current_stage) + 1:
+            fail("Avanza una etapa a la vez, sin retroceder.", 409)
+        # Coordinación revisa; las respuestas pertenecen al solicitante.
+        values = {**row.datos, "estatus": values["estatus"], "etapa": values["etapa"], "observaciones": observations}
+    else:
+        if previous not in (None, "Borrador", "Correcciones solicitadas"):
+            fail("Esta propuesta ya fue enviada; espera la revisión de coordinación.", 409)
+        if values["estatus"] not in ("Borrador", "En revisión"):
+            fail("La autorización corresponde a coordinación.", 403)
+        # Serializa las altas del mismo usuario para evitar duplicados simultáneos.
+        record(db, Usuario, user.id, lock=True)
+        proposals = db.scalars(select(Innovacion).where(Innovacion.user == user.id, Innovacion.id != key))
+        if any(p.datos.get("nombre", "").casefold() == values["nombre"].casefold()
+               and p.datos.get("modulo") == values["modulo"] and p.datos.get("categoria") == values["categoria"] for p in proposals):
+            fail("Ya existe una propuesta con ese nombre en esta categoría.", 409)
+        if row and (values["modulo"] != row.datos["modulo"] or values["categoria"] != row.datos["categoria"]):
+            fail("Conserva el evento y la categoría de la propuesta.", 409)
+        if previous == "Correcciones solicitadas" and values["estatus"] == "Borrador":
+            values["estatus"] = previous
+        values.update(etapa="Local", observaciones=row.datos.get("observaciones", "") if row else "")
+    if previous != values["estatus"] or (row and row.datos.get("etapa") != values["etapa"]):
+        event = registration_event(user, previous, values["estatus"], values["observaciones"] if admin(user) else "Propuesta enviada a revisión." if values["estatus"] == "En revisión" else "Borrador creado.")
+        trail.append({**event, "etapa": values["etapa"]})
     values["fecha"] = row.datos["fecha"] if row else today().isoformat()
+    values["historial"] = trail
     values = {"datos": values, "user": row.user if row else user.id}
 
     return row, values

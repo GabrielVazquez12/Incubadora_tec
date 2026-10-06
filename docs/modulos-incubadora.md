@@ -14,6 +14,8 @@ datos de demostracion; no usarla para comprobar persistencia.
 | Registros y solicitudes | Borrador, anexos, revision, correcciones, aprobacion y conversion de externo a emprendedor | HTTP; descarga Word y permisos de revision |
 | Reportes | Proyectos, emprendedores, avances, estadisticas y exportacion CSV | Datos de la API y renderizado; cuenta integrantes y especialidades fuera del catalogo inicial |
 | Pagos | Consulta de movimientos y comprobantes de prueba | Pruebas locales de pago simulado y reembolso; los cobros reales siguen deshabilitados |
+| Innovación | Borrador, edición, envío a revisión, observaciones, correcciones, aprobación/rechazo, etapas y exportación CSV | HTTP; propiedad, duplicados, estados desactualizados, historial y avance Local → Regional → Nacional |
+| Asistencia y constancias | Confirmación/corrección de asistencia y descarga PDF por participante o coordinación | HTTP; no se emiten sin asistencia ni para otro participante; revisión visual de nombres largos |
 
 No se afirma que exista una pasarela de pagos real. Hace falta elegir y configurar
 un proveedor, validar su notificacion de pago y conciliacion antes de habilitar cobros.
@@ -36,6 +38,19 @@ un proveedor, validar su notificacion de pago y conciliacion antes de habilitar 
 - El inicio muestra actividades futuras y tutorias cuya hora final no ha pasado.
 - La baja de una cuenta con un registro inicial conserva su historial y devuelve
   un error explicativo, igual que las demas relaciones del portal.
+- Innovación admite cambios del emprendedor únicamente en Borrador o Correcciones
+  solicitadas. El envío bloquea la edición hasta que coordinación solicite ajustes.
+  Coordinación revisa las propuestas enviadas y debe indicar observaciones al
+  solicitar correcciones o rechazar. Las propuestas aprobadas avanzan una etapa
+  a la vez. La participación oficial sigue sujeta a la convocatoria institucional.
+- Coordinación confirma o corrige asistencia desde Eventos → Inscripciones después
+  de iniciar el evento. La inscripción debe estar confirmada. El participante
+  descarga su constancia desde Mis inscripciones; coordinación también puede
+  descargarla. La constancia incluye nombre, actividad, fecha, modalidad y folio,
+  sin firmas ni sellos institucionales. Una corrección de asistencia impide nuevas
+  descargas; no puede invalidar copias descargadas previamente.
+- Una inscripción con asistencia confirmada no se cancela ni elimina. Primero
+  coordinación debe corregir la asistencia si fue registrada por error.
 
 ## Verificacion reproducible
 
@@ -48,10 +63,17 @@ docker compose exec -T frontend npm run build
 Las pruebas HTTP crean y eliminan una base PostgreSQL temporal. No requieren
 credenciales de usuarios reales ni modifican la base de desarrollo.
 
-Resultado local y de la imagen final de produccion: 19 pruebas de backend aprobadas, pruebas de horarios, borradores
-y telefonos aprobadas, 53 paginas y 49 enlaces de interfaz comprobados y compilacion
-de produccion correcta. La revision visual interactiva queda pendiente: no habia
-un navegador conectado en la sesion de trabajo.
+La verificación local del 6 de octubre de 2026 incluye 21 pruebas de backend,
+pruebas de horarios, borradores y teléfonos, 53 páginas y 49 enlaces de interfaz,
+controles de propuestas y asistencia, y compilación de producción. Las constancias
+PDF se renderizan y revisan con nombres normales, largos y caracteres especiales.
+La revisión interactiva en navegador y la validación de estos cambios en AWS
+quedan pendientes; la conexión al navegador falló durante esta sesión.
+
+Antes de ejecutar esta versión en un entorno existente, instalar las dependencias
+actualizadas del backend y ejecutar `alembic upgrade head`. La migración
+`073dc19b5210` añade los campos de asistencia y conserva las inscripciones previas
+sin asistencia confirmada. En Docker, reconstruir backend incorpora ReportLab.
 
 Para comprobar el despliegue, `./scripts/verify-aws.ps1 -PortalFlow` prueba por HTTPS
 cuentas temporales, registro, documentos privados, avances, tareas, eventos

@@ -1,6 +1,6 @@
 """Entidades persistentes de los módulos del portal."""
 import uuid
-from sqlalchemy import Column, String, Integer, Date, Time, Numeric, ForeignKey, UniqueConstraint, JSON
+from sqlalchemy import Column, String, Integer, Date, Time, Numeric, ForeignKey, UniqueConstraint, JSON, Boolean, DateTime
 from sqlalchemy.dialects.postgresql import UUID
 from app.database import Base
 
@@ -49,6 +49,9 @@ class Inscripcion(Identified, Base):
     event = Column(UUID(as_uuid=True), ForeignKey("eventos.id"), nullable=False)
     user = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=False)
     estatus = Column(String, nullable=False)
+    asistio = Column(Boolean, nullable=False, default=False, server_default="false")
+    asistencia_por = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True)
+    asistencia_fecha = Column(DateTime(timezone=True), nullable=True)
 
 
 class Pago(Identified, Base):

@@ -351,7 +351,8 @@ class PortalTest(unittest.TestCase):
         proposal = {"nombre": "Robot", "equipo": "Equipo", "lider": "Alice", "asesor": "Docente", "descripcion": "Robot de prueba", "modulo": "InnoBótica", "categoria": "Minisumo"}
         innovationid = str(uuid4())
         self.request("PUT", f"/portal/innovation/{innovationid}", proposal, a)
-        self.request("PUT", f"/portal/innovation/{innovationid}", {**proposal, "estatus": "Aprobada", "etapa": "Regional"}, admin)
+        self.request("PUT", f"/portal/innovation/{innovationid}", {**proposal, "estatus": "En revisión", "estatus_anterior": "Borrador"}, a)
+        self.request("PUT", f"/portal/innovation/{innovationid}", {**proposal, "estatus": "Aprobada", "etapa": "Regional", "estatus_anterior": "En revisión"}, admin)
         self.assertEqual(self.request("GET", "/portal/state", token=a)["data"]["innovation"][0]["etapa"], "Regional")
         admin_user = self.request("GET", "/portal/state", token=admin)["user"]
         self.request("PUT", f"/portal/users/{admin_user['id']}", {**admin_user, "rol": "externo"}, admin, status=400)
@@ -359,6 +360,98 @@ class PortalTest(unittest.TestCase):
         self.request("PUT", f"/portal/users/{alice['id']}", {**alice, "rol": "admin"}, a, status=403)
         # Datos visibles nunca incluyen hashes ni archivos completos.
         self.assertNotIn('password_hash', json.dumps(self.request("GET", "/portal/state", token=admin)))
+
+    def test_event_attendance_certificates_and_permissions(self):
+        from app.models import Evento, Inscripcion
+        person = self.create_user("certificate_owner", "externo")
+        self.create_user("certificate_intruder")
+        owner = self.login("certificate_owner@example.com")
+        intruder = self.login("certificate_intruder@example.com")
+        coordinator = self.login("admin@example.com")
+        event_id, registration_id = str(uuid4()), str(uuid4())
+        event = {"nombre": "Taller de participación", "descripcion": "Taller académico", "tipo": "Participación verificada", "fecha": (date.today() + timedelta(days=2)).isoformat(), "hora": "10:00", "cupo": 20, "precio": 0, "modalidad": "Presencial", "estatus": "Activo"}
+        self.request("POST", "/portal/event-types", {"nombre": "Participación verificada"}, coordinator)
+        self.request("PUT", f"/portal/events/{event_id}", event, coordinator)
+        self.request("POST", f"/portal/events/{event_id}/register", {}, owner)
+        rows = self.request("GET", "/portal/state", token=owner)["data"]["registrations"]
+        registration_id = next(r["id"] for r in rows if r["event"] == event_id)
+        attendance = f"/portal/registrations/{registration_id}/attendance"
+        certificate = f"/portal/registrations/{registration_id}/certificate"
+        self.request("POST", attendance, {"asistio": True}, status=401)
+        self.request("POST", attendance, {"asistio": True}, owner, status=403)
+        self.request("POST", attendance, {"asistio": True}, coordinator, status=409)
+        self.request("GET", certificate, status=401)
+        self.request("GET", certificate, token=intruder, status=403)
+        self.request("GET", certificate, token=owner, status=409)
+        engine = create_engine(self.url)
+        with Session(engine) as db:
+            db.get(Evento, UUID(event_id)).fecha = date.today() - timedelta(days=1)
+            db.commit()
+        engine.dispose()
+        self.request("POST", attendance, {"asistio": True}, coordinator)
+        pdf = self.request("GET", certificate, token=owner, binary=True)
+        self.assertTrue(pdf.startswith(b"%PDF-"))
+        self.assertTrue(self.request("GET", certificate, token=coordinator, binary=True).startswith(b"%PDF-"))
+        self.request("DELETE", f"/portal/registrations/{registration_id}", token=owner, status=409)
+        self.request("DELETE", f"/portal/registrations/{registration_id}", token=coordinator, status=409)
+        state = self.request("GET", "/portal/state", token=owner)["data"]["registrations"]
+        saved = next(r for r in state if r["id"] == registration_id)
+        self.assertTrue(saved["asistio"])
+        self.assertIsNotNone(saved["asistencia_por"])
+        self.assertIsNotNone(saved["asistencia_fecha"])
+        self.request("POST", attendance, {"asistio": False}, coordinator)
+        self.request("GET", certificate, token=owner, status=409)
+        self.request("DELETE", f"/portal/registrations/{registration_id}", token=owner)
+        self.request("GET", certificate, token=owner, status=404)
+
+    def test_innovation_review_corrections_stages_and_permissions(self):
+        self.create_user("innovation_owner")
+        self.create_user("innovation_intruder")
+        self.create_user("innovation_external", "externo")
+        owner = self.login("innovation_owner@example.com")
+        intruder = self.login("innovation_intruder@example.com")
+        external = self.login("innovation_external@example.com")
+        coordinator = self.login("admin@example.com")
+        key = str(uuid4())
+        path = f"/portal/innovation/{key}"
+        proposal = {"nombre": "Robot de seguimiento", "equipo": "Equipo ITS", "lider": "Líder", "asesor": "Docente", "descripcion": "Propuesta inicial", "modulo": "InnoBótica", "categoria": "Robots Minisumo"}
+        self.request("PUT", path, proposal, external, status=403)
+        self.request("PUT", path, proposal, coordinator, status=403)
+        self.request("PUT", path, {**proposal, "estatus": "Aprobada"}, owner, status=403)
+        self.request("PUT", path, proposal, owner)
+        self.request("PUT", f"/portal/innovation/{uuid4()}", {**proposal, "nombre": proposal["nombre"].upper()}, owner, status=409)
+        self.request("PUT", path, {**proposal, "estatus_anterior": "Borrador"}, intruder, status=403)
+        self.request("PUT", path, {**proposal, "estatus": "Aprobada", "estatus_anterior": "Borrador"}, coordinator, status=409)
+        self.request("PUT", path, {**proposal, "descripcion": "Versión completa", "estatus": "En revisión", "estatus_anterior": "Borrador"}, owner)
+        self.request("PUT", path, {**proposal, "estatus_anterior": "Borrador"}, owner, status=409)
+        self.request("PUT", path, {**proposal, "estatus_anterior": "En revisión"}, owner, status=409)
+        self.request("PUT", path, {**proposal, "estatus": "Correcciones solicitadas", "estatus_anterior": "En revisión", "observaciones": " "}, coordinator, status=422)
+        corrections = {**proposal, "estatus": "Correcciones solicitadas", "estatus_anterior": "En revisión", "observaciones": "Aclara el diseño."}
+        self.request("PUT", path, corrections, coordinator)
+        record = next(r for r in self.request("GET", "/portal/state", token=owner)["data"]["innovation"] if r["id"] == key)
+        self.assertEqual(record["descripcion"], "Versión completa")
+        self.assertEqual(record["observaciones"], "Aclara el diseño.")
+        original_date = record["fecha"]
+        self.request("PUT", path, {**proposal, "descripcion": "Diseño corregido", "estatus_anterior": "Correcciones solicitadas"}, owner)
+        record = next(r for r in self.request("GET", "/portal/state", token=owner)["data"]["innovation"] if r["id"] == key)
+        self.assertEqual(record["estatus"], "Correcciones solicitadas")
+        self.request("PUT", path, {**record, "estatus": "En revisión", "estatus_anterior": "Correcciones solicitadas"}, owner)
+        self.request("PUT", path, {**record, "estatus": "Aprobada", "etapa": "Nacional", "estatus_anterior": "En revisión"}, coordinator, status=409)
+        self.request("PUT", path, {**record, "estatus": "Aprobada", "estatus_anterior": "En revisión"}, coordinator)
+        self.request("PUT", path, {**record, "estatus": "Aprobada", "etapa": "Regional", "estatus_anterior": "Aprobada"}, coordinator)
+        self.request("PUT", path, {**record, "estatus": "Aprobada", "etapa": "Local", "estatus_anterior": "Aprobada"}, coordinator, status=409)
+        self.request("PUT", path, {**record, "estatus": "Aprobada", "etapa": "Nacional", "estatus_anterior": "Aprobada"}, coordinator)
+        saved = next(r for r in self.request("GET", "/portal/state", token=owner)["data"]["innovation"] if r["id"] == key)
+        self.assertEqual(saved["etapa"], "Nacional")
+        self.assertEqual(saved["descripcion"], "Diseño corregido")
+        self.assertEqual(saved["fecha"], original_date)
+        self.assertEqual(len(saved["historial"]), 7)
+        self.assertEqual(self.request("GET", "/portal/state", token=intruder)["data"]["innovation"], [])
+        rejected = str(uuid4())
+        self.request("PUT", f"/portal/innovation/{rejected}", {**proposal, "nombre": "Otra propuesta", "estatus": "En revisión"}, owner)
+        rejection = {**proposal, "nombre": "Otra propuesta", "estatus": "Rechazada", "estatus_anterior": "En revisión", "observaciones": "Fuera de convocatoria."}
+        self.request("PUT", f"/portal/innovation/{rejected}", rejection, coordinator)
+        self.request("PUT", f"/portal/innovation/{rejected}", {**rejection, "estatus": "En revisión", "estatus_anterior": "Rechazada"}, owner, status=409)
 
     def test_z_request_corrections_and_resubmission(self):
         self.create_user("request_corrections", "externo")

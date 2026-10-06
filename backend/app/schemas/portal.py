@@ -97,11 +97,17 @@ class InnovationInput(BaseModel):
     modulo: Name
     categoria: Name
     etapa: Literal["Local", "Regional", "Nacional"] = "Local"
-    estatus: Literal["Borrador", "En revisión", "Aprobada", "Rechazada"] = "Borrador"
+    estatus: Literal["Borrador", "En revisión", "Correcciones solicitadas", "Aprobada", "Rechazada"] = "Borrador"
+    estatus_anterior: str | None = None
+    observaciones: str = Field(default="", max_length=5000)
 
 
 class RegistrationInput(BaseModel):
     resultado: Literal["Pagado", "Rechazado"] | None = None
+
+
+class AttendanceInput(BaseModel):
+    asistio: bool
 
 
 class InitialFormInput(BaseModel):

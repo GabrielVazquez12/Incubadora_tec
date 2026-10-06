@@ -80,6 +80,32 @@ assert.ok(adminInnovation.includes('/vista-previa/innovatecnm/certamen?rol=admin
 assert.ok(adminInnovation.includes('/vista-previa/innovatecnm/registros?rol=admin'), 'Innovation records link must preserve the preview role');
 
 const data = initialData();
+// Las acciones de Innovación y constancias respetan el actor y los datos de la API.
+const workflowsData = { ...initialData(), members: [], documents: [], history: [], initialRegistrations: [] };
+workflowsData.innovation = [
+  { id: 'proposal-own', user: 'diego', nombre: 'Robot propio', equipo: 'Equipo ITS', modulo: 'InnoBótica', categoria: 'Robots Minisumo', etapa: 'Local', estatus: 'Correcciones solicitadas', observaciones: 'Aclarar el diseño' },
+  { id: 'proposal-other', user: 'karla', nombre: 'Propuesta privada ajena', equipo: 'Otro equipo', modulo: 'HackaTec', categoria: 'Software Inteligente', etapa: 'Regional', estatus: 'Aprobada' },
+];
+workflowsData.events = [{ id: 'attended-event', nombre: 'Taller realizado', descripcion: 'Actividad', tipo: 'Taller', fecha: '2000-01-01', hora: '09:00', modalidad: 'Presencial', precio: 0, cupo: 20, estatus: 'Activo' }];
+workflowsData.registrations = [{ id: 'attended-registration', user: 'diego', event: 'attended-event', estatus: 'Confirmada', asistio: true }];
+const renderWorkflow = path => renderToString(<StaticRouter location={path}><PortalContext.Provider value={{ data: workflowsData, preview: true, loading: false, paymentsMode: 'prueba', notify() {}, refresh() {} }}><AppRoutes /></PortalContext.Provider></StaticRouter>);
+const ownProposals = renderWorkflow('/vista-previa/innovatecnm/registros?rol=estudiante');
+assert.ok(ownProposals.includes('Robot propio'));
+assert.ok(!ownProposals.includes('Propuesta privada ajena'));
+assert.ok(ownProposals.includes('Correcciones solicitadas'));
+assert.ok(ownProposals.includes('Exportar CSV'));
+assert.ok(renderWorkflow('/vista-previa/innovatecnm/registros?rol=admin').includes('Propuesta privada ajena'));
+const adminCategories = renderWorkflow('/vista-previa/innovatecnm/certamen?rol=admin');
+assert.ok(adminCategories.includes('Consultar propuestas'));
+assert.ok(!adminCategories.includes('Preparar registro'));
+const ownAttendance = renderWorkflow('/vista-previa/emprendedor/inscripciones');
+assert.ok(ownAttendance.includes('Descargar constancia PDF'));
+assert.match(ownAttendance, /button[^>]*disabled=""[^>]*>Cancelar inscripción/);
+assert.ok(!renderWorkflow('/vista-previa/externo/inscripciones').includes('Descargar constancia PDF'));
+const attendanceManagement = renderWorkflow('/vista-previa/coordinador/eventos/inscripciones');
+assert.ok(attendanceManagement.includes('Corregir asistencia'));
+assert.ok(attendanceManagement.includes('Descargar constancia'));
+console.log('PASS: innovation ownership, coordinator review navigation, proposal exports, verified attendance and certificate permissions.');
 assert.equal(occupied(data, data.events.find(e => e.id === 'pitch')), 11);
 assert.equal(occupied(data, data.events.find(e => e.id === 'finanzas')), 20);
 const full = render('/vista-previa/emprendedor/eventos/finanzas/checkout');

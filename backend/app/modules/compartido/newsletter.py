@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Publication, Evento, RolUsuario
 from app.auth.security import require_role
+from app.modules.compartido.editorial_media import galleries
 
 router = APIRouter(tags=['boletin'])
 admin = Depends(require_role(RolUsuario.admin))
@@ -31,8 +32,8 @@ class PublicationInput(BaseModel):
         return self
 
 
-def serialized(item):
-    return {key: getattr(item, key) for key in ['id', 'titulo', 'resumen', 'contenido', 'categoria', 'fecha', 'vence', 'publicada', 'destacada']}
+def serialized(item, images=None):
+    return {**{key: getattr(item, key) for key in ['id', 'titulo', 'resumen', 'contenido', 'categoria', 'fecha', 'vence', 'publicada', 'destacada']}, 'imagenes': images or []}
 
 
 @router.get('/public/newsletter')
@@ -40,12 +41,16 @@ def newsletter(db: Session = Depends(get_db)):
     now = datetime.now(ZoneInfo('America/Mexico_City'))
     news = db.scalars(select(Publication).where(Publication.publicada.is_(True), Publication.fecha <= now.date(), or_(Publication.vence.is_(None), Publication.vence >= now.date())).order_by(Publication.destacada.desc(), Publication.fecha.desc(), Publication.id).limit(40)).all()
     events = db.scalars(select(Evento).where(Evento.estatus == 'Activo', or_(Evento.fecha > now.date(), and_(Evento.fecha == now.date(), Evento.hora >= now.time().replace(tzinfo=None)))).order_by(Evento.fecha, Evento.hora).limit(12)).all()
-    return {'publicaciones': [serialized(n) for n in news], 'eventos': [{key: getattr(e, key) for key in ['id', 'nombre', 'descripcion', 'tipo', 'fecha', 'hora', 'modalidad', 'precio', 'cupo']} for e in events], 'actualizado': now.isoformat()}
+    news_images = galleries(db, 'publication', [n.id for n in news])
+    event_images = galleries(db, 'event', [e.id for e in events])
+    return {'publicaciones': [serialized(n, news_images.get(str(n.id))) for n in news], 'eventos': [{**{key: getattr(e, key) for key in ['id', 'nombre', 'descripcion', 'tipo', 'fecha', 'hora', 'modalidad', 'precio', 'cupo']}, 'imagenes': event_images.get(str(e.id), [])} for e in events], 'actualizado': now.isoformat()}
 
 
 @router.get('/admin/publications', dependencies=[admin])
 def publications(db: Session = Depends(get_db)):
-    return [serialized(n) for n in db.scalars(select(Publication).order_by(Publication.fecha.desc(), Publication.id)).all()]
+    items = db.scalars(select(Publication).order_by(Publication.fecha.desc(), Publication.id)).all()
+    images = galleries(db, 'publication', [n.id for n in items])
+    return [serialized(n, images.get(str(n.id))) for n in items]
 
 
 @router.post('/admin/publications', status_code=201, dependencies=[admin])

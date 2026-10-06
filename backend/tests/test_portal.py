@@ -367,6 +367,80 @@ class PortalTest(unittest.TestCase):
         # Datos visibles nunca incluyen hashes ni archivos completos.
         self.assertNotIn('password_hash', json.dumps(self.request("GET", "/portal/state", token=admin)))
 
+    def test_editorial_images_validation_visibility_and_permissions(self):
+        from PIL import Image
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        day = datetime.now(ZoneInfo('America/Mexico_City')).date()
+        coordinator = self.login('admin@example.com')
+        self.create_user('image_student')
+        student = self.login('image_student@example.com')
+        payload = dict(titulo='Noticia con flyer', resumen='Resumen', contenido='Contenido', categoria='Noticia', fecha=day.isoformat(), vence=None, publicada=False, destacada=False)
+        publication = self.request('POST', '/admin/publications', payload, coordinator, status=201)
+        image_bytes = BytesIO()
+        Image.new('RGB', (40, 80), 'white').save(image_bytes, 'PNG')
+
+        def upload(kind, key, token=coordinator, content=None, alt='Flyer del taller', status=201):
+            boundary = 'image-' + uuid4().hex
+            body = (f'--{boundary}\r\nContent-Disposition: form-data; name="alt"\r\n\r\n{alt}\r\n'
+                    f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="flyer.png"\r\nContent-Type: image/png\r\n\r\n').encode()
+            body += image_bytes.getvalue() if content is None else content
+            body += f'\r\n--{boundary}--\r\n'.encode()
+            headers = {'Content-Type': 'multipart/form-data; boundary=' + boundary}
+            if token:
+                headers['Authorization'] = 'Bearer ' + token
+            try:
+                response = urlopen(Request(self.base + f'/admin/media/{kind}/{key}', data=body, headers=headers), timeout=30)
+            except HTTPError as error:
+                response = error
+            with response:
+                result = response.read()
+                self.assertEqual(response.status, status, result)
+                return json.loads(result)
+
+        upload('publication', publication['id'], token=None, status=401)
+        upload('publication', publication['id'], token=student, status=403)
+        upload('publication', publication['id'], content=b'<svg>not an image</svg>', status=422)
+        upload('publication', publication['id'], alt='   ', status=422)
+        upload('publication', publication['id'], content=b'x' * (8 * 1024 * 1024 + 1), status=422)
+        image = upload('publication', publication['id'])
+        url = f"/public/media/{image['id']}"
+        protected = f"/portal/media/{image['id']}"
+        self.request('GET', url, status=404)
+        self.request('GET', protected, status=401)
+        self.request('GET', protected, token=student, status=403)
+        converted = self.request('GET', protected, token=coordinator, binary=True)
+        self.assertEqual(converted[8:12], b'WEBP')
+        self.request('PUT', f"/admin/publications/{publication['id']}", {**payload, 'publicada': True}, coordinator)
+        self.assertEqual(self.request('GET', url, binary=True), converted)
+        feed = self.request('GET', '/public/newsletter')
+        published = next(n for n in feed['publicaciones'] if n['id'] == publication['id'])
+        self.assertEqual(published['imagenes'], [image])
+        self.assertEqual(set(image), {'id', 'alt', 'url'})
+        for _ in range(4):
+            upload('publication', publication['id'])
+        upload('publication', publication['id'], status=409)
+        self.request('PUT', f"/admin/publications/{publication['id']}", payload, coordinator)
+        self.request('GET', url, status=404)
+        self.request('DELETE', f"/admin/media/{image['id']}", token=student, status=403)
+        self.request('DELETE', f"/admin/media/{image['id']}", token=coordinator)
+        self.request('GET', protected, token=coordinator, status=404)
+        self.assertEqual(len(self.request('GET', f"/admin/media/publication/{publication['id']}", token=coordinator)), 4)
+
+        event_id = str(uuid4())
+        self.request('POST', '/portal/event-types', {'nombre': 'Material visual'}, coordinator)
+        event = dict(nombre='Evento con flyer', descripcion='Actividad', tipo='Material visual', fecha=(day + timedelta(days=2)).isoformat(), hora='10:00', cupo=20, precio=0, modalidad='Presencial', estatus='Pendiente')
+        self.request('PUT', f'/portal/events/{event_id}', event, coordinator)
+        flyer = upload('event', event_id)
+        self.request('GET', f"/public/media/{flyer['id']}", status=404)
+        self.request('GET', f"/portal/media/{flyer['id']}", token=student, binary=True)
+        self.request('PUT', f'/portal/events/{event_id}', {**event, 'estatus': 'Activo'}, coordinator)
+        self.request('GET', f"/public/media/{flyer['id']}", binary=True)
+        state = self.request('GET', '/portal/state', token=student)['data']
+        self.assertEqual(next(e for e in state['events'] if e['id'] == event_id)['imagenes'], [flyer])
+        self.request('PUT', f'/portal/events/{event_id}', {**event, 'estatus': 'Inactivo'}, coordinator)
+        self.request('GET', f"/public/media/{flyer['id']}", status=404)
+
     def test_public_newsletter_visibility_permissions_and_agenda(self):
         from datetime import datetime
         from zoneinfo import ZoneInfo

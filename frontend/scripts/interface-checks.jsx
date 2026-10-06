@@ -1,4 +1,5 @@
 import { DownloadRegistration } from '../src/shared/registration/DownloadRegistration.jsx';
+import { ImageGallery } from '../src/shared/EditorialImages.jsx';
 import { FullRegistration } from '../src/shared/registration/FullRegistration.jsx';
 import { registrationDate, previewRegistrationMetadata } from '../src/shared/registration/metadata.js';
 import assert from 'node:assert/strict';
@@ -15,6 +16,10 @@ function render(path) {
 }
 
 const publicLanding = renderToString(<StaticRouter location="/"><PortalProvider><AppRoutes /></PortalProvider></StaticRouter>);
+const gallery = renderToString(<ImageGallery images={[{ id: 'flyer', alt: 'Flyer del taller <ITS>', url: '/public/media/flyer' }]} />);
+assert.ok(gallery.includes('alt="Flyer del taller &lt;ITS&gt;"'));
+assert.ok(gallery.includes('http://localhost:8000/public/media/flyer'));
+assert.ok(gallery.includes('Ampliar imagen: Flyer del taller'));
 assert.ok(publicLanding.includes('Boletín de la comunidad ITS'));
 assert.ok(!publicLanding.includes('/vista-previa'));
 assert.ok(!publicLanding.includes('Explorar vista previa'));

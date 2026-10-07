@@ -1,5 +1,6 @@
 import { DownloadRegistration } from '../src/shared/registration/DownloadRegistration.jsx';
 import { ImageGallery } from '../src/shared/EditorialImages.jsx';
+import { PublicationCard } from '../src/modules/publico/Newsletter.jsx';
 import { FullRegistration } from '../src/shared/registration/FullRegistration.jsx';
 import { registrationDate, previewRegistrationMetadata } from '../src/shared/registration/metadata.js';
 import assert from 'node:assert/strict';
@@ -20,6 +21,11 @@ const gallery = renderToString(<ImageGallery images={[{ id: 'flyer', alt: 'Flyer
 assert.ok(gallery.includes('alt="Flyer del taller &lt;ITS&gt;"'));
 assert.ok(gallery.includes('http://localhost:8000/public/media/flyer'));
 assert.ok(gallery.includes('Ampliar imagen: Flyer del taller'));
+const newsCard = renderToString(<PublicationCard item={{ id: 'news', titulo: 'Taller ITS', resumen: 'Aprende con la comunidad', categoria: 'Noticia', fecha: '2026-10-06', imagenes: [{ id: 'flyer', alt: 'Flyer vertical', url: '/public/media/flyer' }, { id: 'photo', alt: 'Fotografía', url: '/public/media/photo' }] }} featured onRead={() => {}} />);
+assert.ok(newsCard.indexOf('alt="Flyer vertical"') < newsCard.indexOf('Taller ITS'), 'The lead image should precede the article title');
+assert.ok(newsCard.includes('editorial-cover'));
+assert.ok(newsCard.replace(/<!--.*?-->/g, '').includes('2 imágenes'));
+assert.ok(!newsCard.includes('alt="Fotografía"'), 'Secondary images belong in the full article');
 assert.ok(publicLanding.includes('Boletín de la comunidad ITS'));
 assert.ok(!publicLanding.includes('/vista-previa'));
 assert.ok(!publicLanding.includes('Explorar vista previa'));
@@ -31,6 +37,9 @@ for (const path of ['/vista-previa', '/vista-previa/emprendedor/inicio', '/vista
 
 const pages = [
   ['emprendedor/inicio', 'Hola, Diego'],
+  ['emprendedor/boletin', 'Actualidad de la incubadora'],
+  ['coordinador/boletin', 'Actualidad de la incubadora'],
+  ['externo/boletin', 'Actualidad de la incubadora'],
   ['emprendedor/proyectos', 'Mis proyectos'],
   ['emprendedor/proyectos/nuevo', 'Nuevo proyecto'],
   ['emprendedor/proyectos/ecopack', 'EcoPack'],

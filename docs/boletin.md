@@ -9,7 +9,22 @@ La portada da prioridad al boletín de noticias, convocatorias, avisos y próxim
 
 ## Gestión de contenido
 
-En **Coordinador → Boletín** se crean y editan publicaciones con título, resumen, contenido, categoría, fecha de publicación, fecha opcional de cierre, visibilidad y prioridad. Para retirar una publicación se desmarca **Publicar en el sitio** y se guarda. Se conserva el contenido para futuras ediciones.
+En **Coordinador → Gestionar noticias** se crean y editan publicaciones con título, resumen, contenido, categoría, fecha de publicación, fecha opcional de cierre, visibilidad y prioridad. Para retirar una publicación se desmarca **Publicar en el sitio** y se guarda. Se conserva el contenido para futuras ediciones.
+
+## Lectura para toda la comunidad
+
+La portada pública y **Boletín** en las cuentas de emprendedores, externos y
+coordinación muestran las mismas noticias vigentes. El inicio de cada cuenta
+incluye las tres primeras publicaciones y un acceso al boletín completo.
+Hay filtros por categoría, búsqueda por título, resumen y contenido (sin
+distinguir acentos), y actualización manual, además de la automática.
+
+La primera imagen es la portada de cada noticia: conserva sus proporciones,
+sin recortes. La noticia destacada acomoda los flyers verticales junto al
+texto en escritorio; en móvil se muestran arriba. **Leer noticia** abre el
+contenido completo y todas las imágenes, que pueden ampliarse. Cada noticia
+tiene un enlace público que puede compartirse, sin requerir inicio de sesión.
+La agenda usa portadas visuales y enlaza al módulo de eventos del usuario.
 
 La API pública `/public/newsletter` muestra solamente publicaciones marcadas para publicación, con fecha de inicio alcanzada y sin fecha de cierre vencida. La fecha de cierre se incluye completa; el contenido deja de aparecer al día siguiente. Las fechas se interpretan en horario de Ciudad de México. La portada actualiza la consulta cada cinco minutos y al recuperar el foco.
 

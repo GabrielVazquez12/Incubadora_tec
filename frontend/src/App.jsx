@@ -9,6 +9,7 @@ import Registro from './modules/autenticacion/Registro.jsx';
 import { PortalProvider } from './shared/portal/PortalContext.jsx';
 import PortalLayout from './shared/portal/PortalLayout.jsx';
 import Home from './shared/portal/Home.jsx';
+import CommunityNewsletter from './shared/portal/CommunityNewsletter.jsx';
 import { Payments } from './shared/events/Payments.jsx';
 import Innovation from './modules/innovacion/Innovation.jsx';
 import { rolePaths } from './shared/portal/data.js';
@@ -28,6 +29,7 @@ function portalRoutes(role, preview) {
   return <Route key={base} path={base} element={preview ? layout : <RutaProtegida rolesPermitidos={[role]}>{layout}</RutaProtegida>}>
     <Route index element={<Navigate to="inicio" replace />} />
     <Route path="inicio" element={<Home />} />
+    <Route path="boletin" element={<CommunityNewsletter />} />
     <Route path="pagos" element={<Payments />} />
     {actorRoutes[role].map(([path, element]) => <Route key={path} path={path} element={element} />)}
   </Route>;

@@ -7,6 +7,7 @@ import './editorial-images.css';
 function Picture({ image, authenticated = false, expanded = false }) {
   const [url, setUrl] = useState('');
   const [failed, setFailed] = useState(false);
+  const [orientation, setOrientation] = useState('');
   useEffect(() => {
     if (!authenticated) return;
     const controller = new AbortController();
@@ -20,13 +21,13 @@ function Picture({ image, authenticated = false, expanded = false }) {
   }, [image.id, authenticated]);
   const src = authenticated ? url : `${api.defaults.baseURL.replace(/\/$/, '')}${image.url}`;
   if (failed) return <span role="status">No se pudo cargar la imagen.</span>;
-  return src ? <><img src={src} alt={image.alt} loading="lazy" decoding="async" onError={() => setFailed(true)} />{expanded && <a className="text-link" href={src} target="_blank" rel="noreferrer">Abrir imagen en tamaño completo ↗</a>}</> : <span role="status">Cargando imagen…</span>;
+  return src ? <><img src={src} alt={image.alt} loading="lazy" decoding="async" data-orientation={orientation} onLoad={e => setOrientation(e.currentTarget.naturalHeight > e.currentTarget.naturalWidth * 1.15 ? 'portrait' : 'landscape')} onError={() => setFailed(true)} />{expanded && <a className="text-link" href={src} target="_blank" rel="noreferrer">Abrir imagen en tamaño completo ↗</a>}</> : <span role="status">Cargando imagen…</span>;
 }
 
-export function ImageGallery({ images = [], authenticated = false }) {
+export function ImageGallery({ images = [], authenticated = false, variant = 'gallery' }) {
   const [selected, setSelected] = useState(null);
   if (!images.length) return null;
-  return <><div className="editorial-gallery">{images.map(image => <button className="editorial-picture" type="button" key={image.id} onClick={() => setSelected(image)} aria-label={`Ampliar imagen: ${image.alt}`}><Picture image={image} authenticated={authenticated} /><span>Ver imagen completa ↗</span></button>)}</div>{selected && <Modal title={selected.alt} onClose={() => setSelected(null)}><div className="editorial-viewer"><Picture image={selected} authenticated={authenticated} expanded /></div></Modal>}</>;
+  return <><div className={`editorial-gallery ${variant === 'cover' ? 'editorial-cover' : ''}`}>{images.map(image => <button className="editorial-picture" type="button" key={image.id} onClick={() => setSelected(image)} aria-label={`Ampliar imagen: ${image.alt}`}><Picture image={image} authenticated={authenticated} /><span>Ver imagen completa ↗</span></button>)}</div>{selected && <Modal title={selected.alt} onClose={() => setSelected(null)}><div className="editorial-viewer"><Picture image={selected} authenticated={authenticated} expanded /></div></Modal>}</>;
 }
 
 export function ImageEditor({ kind, itemId, onChanged }) {

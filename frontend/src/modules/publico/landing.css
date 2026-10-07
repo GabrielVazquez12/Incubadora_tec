@@ -44,45 +44,8 @@
 .landing-hero h2 { font-size: clamp(34px, 4vw, 52px); line-height: 1.1; margin-bottom: 26px; }
 .landing-hero h2 em { color: #6e1e39; }
 .landing-hero { border-top: 1px solid #e5e1e7; }
-.newsletter { padding-block: 60px 70px; scroll-margin-top: 20px; }
-.newsletter-heading { display: grid; grid-template-columns: 1.4fr 1fr; align-items: end; gap: 60px; margin-bottom: 32px; }
-.newsletter-heading h1 { margin-bottom: 0; }
-.newsletter-heading > div:last-child { color: #696471; font-size: 16px; }
-.newsletter-heading small { font-size: 11px; }
-.newsletter-filters { display: flex; flex-wrap: wrap; gap: 8px; padding-bottom: 26px; }
-.newsletter-filters button { font: 600 12px 'Segoe UI', sans-serif; border: 1px solid #d8c8ce; background: white; color: #6e1e39; padding: 9px 18px; border-radius: 24px; cursor: pointer; }
-.newsletter-filters button[aria-pressed="true"] { background: #6e1e39; color: white; border-color: #6e1e39; }
-.newsletter-columns { display: grid; grid-template-columns: 1.6fr 1fr; gap: 30px; align-items: start; }
-.newsletter-news { display: grid; gap: 18px; }
-.newsletter-article { background: white; border: 1px solid #e5e1e7; border-radius: 12px; padding: 28px; }
-.newsletter-article h2 { font-size: 28px; margin: 18px 0 12px; }
-.newsletter-article p { font-size: 14px; color: #696471; }
-.newsletter-meta { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; font-size: 11px; color: #696471; }
-.newsletter-meta span { font-weight: 700; color: #6e1e39; text-transform: uppercase; letter-spacing: 1px; }
-.newsletter-featured { border-top: 4px solid #6e1e39; padding: 34px; background: #f5edf0; }
-.newsletter-featured h2 { font-size: 36px; }
-.newsletter-article summary { color: #1f4e79; font-size: 13px; font-weight: 600; cursor: pointer; padding-block: 10px; }
-.newsletter-article small { display: block; color: #696471; font-size: 11px; margin-top: 12px; }
-.newsletter-body { padding-top: 8px; border-top: 1px solid #e5e1e7; overflow-wrap: anywhere; white-space: pre-line; }
-.newsletter-article h2, .newsletter-article > p { overflow-wrap: anywhere; }
-.newsletter-agenda { border: 1px solid #e5e1e7; background: white; border-radius: 12px; padding: 28px; }
-.newsletter-agenda-heading { border-bottom: 1px solid #e5e1e7; padding-bottom: 22px; }
-.newsletter-agenda h2 { font-size: 30px; }
-.newsletter-event { display: flex; gap: 18px; padding-block: 24px; border-bottom: 1px solid #e5e1e7; margin-bottom: 20px; }
-.newsletter-event-date { color: #6e1e39; display: flex; flex-direction: column; align-items: center; background: #f5edf0; border-radius: 7px; padding: 10px 12px; height: fit-content; flex-shrink: 0; }
-.newsletter-event-date strong { font: 28px Cambria, serif; }
-.newsletter-event-date span { font-size: 11px; text-transform: uppercase; }
-.newsletter-event h3 { font-size: 23px; margin: 8px 0; overflow-wrap: anywhere; }
-.newsletter-event p { color: #696471; font-size: 12px; overflow-wrap: anywhere; }
-.newsletter-event-type { font-size: 10px; letter-spacing: 1px; color: #6e1e39; text-transform: uppercase; }
-.newsletter-event a { display: block; color: #1f4e79; font-size: 12px; font-weight: 600; margin-top: 12px; }
-.newsletter-event-price { color: #6e1e39; font-size: 12px; font-weight: 600; }
-.newsletter-message { background: #eeecef; padding: 20px; border-radius: 8px; color: #696471; font-size: 14px; margin-block: 20px; }
-.newsletter-events-only { grid-template-columns: 1fr; }
-.newsletter-columns:not(:has(.newsletter-agenda)) { grid-template-columns: 1fr; }
 .publication-admin-item { padding-block: 20px; border-bottom: 1px solid #e5e1e7; }
 .publication-admin-item h3 { margin: 10px 0; }
-@media (max-width: 800px) { .newsletter-heading, .newsletter-columns { grid-template-columns: 1fr; gap: 24px; } .newsletter { padding-block: 40px; } .newsletter-heading h1 { font-size: 42px; } .newsletter-featured { padding: 26px; } .newsletter-featured h2 { font-size: 29px; } }
 .landing-process { background: #eeecef; border-block: 1px solid #e5e1e7; padding-block: 65px; }
 .landing-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 50px; margin-top: 40px; }
 .landing-steps > div { border-top: 1px solid #cdbbc2; padding-top: 22px; }

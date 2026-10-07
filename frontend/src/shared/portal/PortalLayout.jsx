@@ -17,7 +17,7 @@ export default function PortalLayout({ role, preview = false, innovation = false
   const base = `${preview ? '/vista-previa' : ''}/${innovation ? 'innovatecnm' : rolePaths[role]}`;
   const home = `${preview ? '/vista-previa' : ''}/${rolePaths[role]}/inicio`;
   const query = innovation && preview ? `?rol=${role}` : '';
-  const nav = innovation ? [['inicio', 'Inicio'], ['certamen', 'Certamen'], ['hackatec', 'HackaTec'], ['innobotica', 'InnoBótica'], ['innovaccion', 'InnovAcción'], ['retos', 'Retos Nacionales'], ['registros', 'Registros']] : links[role];
+  const nav = innovation ? [['inicio', 'Inicio'], ['certamen', 'Certamen'], ['hackatec', 'HackaTec'], ['innobotica', 'InnoBótica'], ['innovaccion', 'InnovAcción'], ['retos', 'Retos Nacionales'], ['registros', 'Registros']] : [links[role][0], ['boletin', 'Boletín'], ...links[role].slice(1).map(([path, title]) => [path, path === 'publicaciones' ? 'Gestionar noticias' : title])];
   const logout = () => { if (!preview) { localStorage.removeItem('access_token'); localStorage.removeItem('rol'); } navigate('/'); };
   return <div className="portal-app">
     <a className="skip-link" href="#contenido">Saltar al contenido</a>

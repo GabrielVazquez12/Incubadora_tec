@@ -7,18 +7,26 @@ import base64
 import json
 import os
 import secrets
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 from uuid import UUID, uuid4
+from io import BytesIO
+from PIL import Image
 
 from production_start import database_url
 
 os.environ['DATABASE_URL'] = database_url(os.environ)
 from app.database import SessionLocal
-from app.models import Usuario, RolUsuario, Proyecto, RegistroInicial, Documento, Evento, Inscripcion, Pago, Horario, Tutoria, Solicitud, Innovacion
+from app.models import Usuario, RolUsuario, Proyecto, RegistroInicial, Documento, Evento, Inscripcion, Pago, Horario, Tutoria, Solicitud, Innovacion, Publication, EditorialImage
 from app.initial_registration import fields, SPEC
 from app.document_storage import s3_client
+import verify_deployment
+
+# Reuse the smoke test so the full acceptance flow also verifies RDS TLS,
+# the ECS task identity, S3 encryption and a private storage round-trip.
+verify_deployment.main()
 
 BASE = os.environ['PORTAL_URL'].rstrip('/')
 run_id = uuid4().hex
@@ -28,6 +36,7 @@ registration_id, project_id = uuid4(), uuid4()
 event_id, slot_id = uuid4(), uuid4()
 external_registration_id, request_id = uuid4(), uuid4()
 innovation_id = uuid4()
+publication_id = None
 
 
 def request(method, path, data=None, token=None, expected=200, raw=None, content_type=None):
@@ -48,6 +57,15 @@ def request(method, path, data=None, token=None, expected=200, raw=None, content
         return content
 
 
+def upload_image(kind, key, token):
+    image = BytesIO()
+    Image.new('RGB', (40, 80), 'white').save(image, 'PNG')
+    boundary = 'image-' + run_id
+    body = (f'--{boundary}\r\nContent-Disposition: form-data; name="alt"\r\n\r\nQA flyer temporal\r\n'
+        f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="qa.png"\r\nContent-Type: image/png\r\n\r\n').encode() + image.getvalue() + f'\r\n--{boundary}--\r\n'.encode()
+    return request('POST', f'/admin/media/{kind}/{key}', token=token, expected=201, raw=body, content_type='multipart/form-data; boundary=' + boundary)
+
+
 try:
     request('GET', '/admin/dashboard', expected=401)
     for email in emails:
@@ -62,6 +80,35 @@ try:
     request('GET', '/admin/dashboard', token=student, expected=403)
     assert 'proyectos' in request('GET', '/admin/dashboard', token=admin)
     print('Coordinator access and student access restrictions: OK', flush=True)
+
+    request('GET', '/admin/publications', expected=401)
+    request('GET', '/admin/publications', token=student, expected=403)
+    publication_day = datetime.now(ZoneInfo('America/Mexico_City')).date()
+    publication = {'titulo': 'QA temporal ' + run_id, 'resumen': 'Verificación automática',
+        'contenido': 'Publicación temporal de verificación; no es una convocatoria.',
+        'categoria': 'Aviso', 'fecha': publication_day.isoformat(), 'vence': None,
+        'publicada': False, 'destacada': False}
+    publication_id = UUID(request('POST', '/admin/publications', publication, admin, expected=201)['id'])
+    news_image = upload_image('publication', publication_id, admin)
+    request('GET', f"/public/media/{news_image['id']}", expected=404)
+    request('GET', f"/portal/media/{news_image['id']}", token=student, expected=403)
+    assert request('GET', f"/portal/media/{news_image['id']}", token=admin)[8:12] == b'WEBP'
+    with SessionLocal() as db:
+        stored = db.get(EditorialImage, UUID(news_image['id']))
+        assert s3_client().head_object(Bucket=stored.bucket, Key=stored.clave_archivo)['ServerSideEncryption'] == 'AES256'
+    request('DELETE', f"/admin/media/{news_image['id']}", token=admin)
+    request('GET', f"/portal/media/{news_image['id']}", token=admin, expected=404)
+    print('Private editorial image upload, normalization, S3 encryption and retirement: OK', flush=True)
+    public = request('GET', '/public/newsletter')
+    assert not any(p['id'] == str(publication_id) for p in public['publicaciones'])
+    scheduled = {**publication, 'publicada': True, 'fecha': (publication_day + timedelta(days=1)).isoformat()}
+    request('PUT', f'/admin/publications/{publication_id}', scheduled, admin)
+    assert not any(p['id'] == str(publication_id) for p in request('GET', '/public/newsletter')['publicaciones'])
+    expired = {**publication, 'publicada': True, 'fecha': (publication_day - timedelta(days=2)).isoformat(), 'vence': (publication_day - timedelta(days=1)).isoformat()}
+    request('PUT', f'/admin/publications/{publication_id}', expired, admin)
+    assert not any(p['id'] == str(publication_id) for p in request('GET', '/public/newsletter')['publicaciones'])
+    assert 'users' not in public and 'eventos' in public
+    print('Public newsletter, editorial permissions, hidden drafts, scheduling and expiration: OK', flush=True)
 
     data = {'identificacion.numero_solicitantes': '1'}
     for key, field in list(fields(data)):
@@ -123,6 +170,9 @@ try:
         'tipo': state['eventTypes'][0], 'fecha': future, 'hora': '10:00', 'cupo': 1,
         'precio': 0, 'modalidad': 'En línea', 'estatus': 'Activo'}
     request('PUT', f'/portal/events/{event_id}', event, admin)
+    event_image = upload_image('event', event_id, admin)
+    assert request('GET', f"/public/media/{event_image['id']}")[8:12] == b'WEBP'
+    assert any(e['id'] == str(event_id) for e in request('GET', '/public/newsletter')['eventos'])
     assert request('POST', f'/portal/events/{event_id}/register', {}, student)['confirmed']
     request('POST', f'/portal/events/{event_id}/register', {}, outsider, expected=409)
     registration = next(r for r in request('GET', '/portal/state', token=student)['data']['registrations'] if r['event'] == str(event_id))
@@ -212,6 +262,11 @@ try:
 finally:
     objects = set()
     with SessionLocal() as db:
+        from sqlalchemy import or_
+        for image in db.query(EditorialImage).filter(or_(EditorialImage.publicacion_id == publication_id if publication_id else False, EditorialImage.evento_id == event_id)):
+            objects.add((image.bucket, image.clave_archivo))
+        if publication_id:
+            db.query(Publication).filter(Publication.id == publication_id).delete(synchronize_session=False)
         db.query(Innovacion).filter(Innovacion.id == innovation_id).delete(synchronize_session=False)
         db.query(Tutoria).filter(Tutoria.slot == slot_id).delete(synchronize_session=False)
         db.query(Horario).filter(Horario.id == slot_id).delete(synchronize_session=False)

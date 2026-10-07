@@ -2,8 +2,9 @@
 
 ## Alcance verificado
 
-Las rutas autenticadas utilizan la API y PostgreSQL. `/vista-previa` conserva
-datos de demostracion; no usarla para comprobar persistencia.
+Las rutas autenticadas utilizan la API y PostgreSQL. La aplicacion publica
+no expone rutas de vista previa. El boletin se administra desde coordinacion;
+ver [gestion del boletin](boletin.md).
 
 | Modulo | Operaciones | Comprobacion |
 |---|---|---|
@@ -67,8 +68,13 @@ La verificación local del 6 de octubre de 2026 incluye 21 pruebas de backend,
 pruebas de horarios, borradores y teléfonos, 53 páginas y 49 enlaces de interfaz,
 controles de propuestas y asistencia, y compilación de producción. Las constancias
 PDF se renderizan y revisan con nombres normales, largos y caracteres especiales.
-La revisión interactiva en navegador y la validación de estos cambios en AWS
-quedan pendientes; la conexión al navegador falló durante esta sesión.
+La imagen final de producción también pasó las 21 pruebas de backend. La
+validación de estos cambios en AWS pasó el 6 de octubre de 2026 mediante
+`./scripts/verify-aws.ps1 -PortalFlow`: RDS con TLS, identidad del rol ECS,
+S3 cifrado, flujos del portal, Innovación, asistencia y constancias privadas.
+La revisión interactiva en navegador sigue pendiente; la conexión al navegador
+falló durante la sesión de implementación. Las comprobaciones de interfaz son
+de renderizado y HTTP, no de interacción con clics en un navegador.
 
 Antes de ejecutar esta versión en un entorno existente, instalar las dependencias
 actualizadas del backend y ejecutar `alembic upgrade head`. La migración
@@ -78,6 +84,8 @@ sin asistencia confirmada. En Docker, reconstruir backend incorpora ReportLab.
 Para comprobar el despliegue, `./scripts/verify-aws.ps1 -PortalFlow` prueba por HTTPS
 cuentas temporales, registro, documentos privados, avances, tareas, eventos
 gratuitos, cupos, cancelaciones, tutorias y el ciclo de rechazo, correccion y
-admision de una solicitud externa. Tambien verifica que el servidor rechace
-pagos simulados en AWS. Limpia sus registros SQL y borra logicamente sus objetos S3;
+admision de una solicitud externa. Incluye el ciclo de revisión y correcciones
+de Innovación, el avance de etapas, asistencia y constancias PDF con permisos.
+También comprueba TLS con RDS, la identidad ECS y cifrado AES256 en S3, y que el
+servidor rechace pagos simulados en AWS. Limpia sus registros SQL y borra logicamente sus objetos S3;
 el versionado puede conservar versiones anteriores. Ejecutar deliberadamente.

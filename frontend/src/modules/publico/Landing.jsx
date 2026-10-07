@@ -1,135 +1,33 @@
-import { Link } from "react-router-dom";
+import Newsletter from './Newsletter.jsx';
+import { Link } from 'react-router-dom';
+import InstitutionalBrand from '../../shared/InstitutionalBrand.jsx';
+import './landing.css';
 
-const eventos = [
-  {
-    etiqueta: "Taller",
-    titulo: "Taller de Pitch Deck",
-    fecha: "05 SEP",
-  },
-  {
-    etiqueta: "Convocatoria",
-    titulo: "Feria de Emprendimiento ITS",
-    fecha: "18 SEP",
-    detalle:
-      "Nueva generación de incubación 2026–2027. Registro abierto para proyectos de base tecnológica del ITS. Cupo limitado.",
-  },
-  {
-    etiqueta: "Capacitación",
-    titulo: "Finanzas para startups",
-    fecha: "01 OCT",
-  },
+const services = [
+  ['01', 'Incubación de proyectos', 'Dale estructura a tu idea, evalúa su factibilidad y construye tu plan de negocio.', '/registro'],
+  ['02', 'Asesoría y tutorías', 'Encuentra acompañamiento para los retos legales, administrativos y financieros de tu proyecto.', '/login'],
+  ['03', 'Eventos y formación', 'Explora talleres y actividades para fortalecer tus habilidades de emprendimiento.', '/login'],
+  ['04', 'InnovaTecNM', 'Conoce los módulos de innovación y prepara tu propuesta para participar.', '/login'],
 ];
 
 export default function Landing() {
-  return (
-    <div className="min-h-screen bg-appbg font-body text-gray-800">
-      <header className="border-b border-gray-200 bg-white">
-        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="font-display text-lg text-guinda">ITS</span>
-            <span className="text-sm text-gray-500">Incubadora ITS</span>
-          </div>
-          <nav className="hidden md:flex items-center gap-8 text-sm">
-            <a href="#inicio">Inicio</a>
-            <Link to="/vista-previa/emprendedor/proyectos">Proyectos</Link>
-            <a href="#eventos">Eventos</a>
-            <Link to="/vista-previa/emprendedor/tutorias">Tutorías</Link>
-          </nav>
-          <div className="flex items-center gap-3">
-            <Link to="/login" className="text-sm text-institucional">
-              Iniciar sesión
-            </Link>
-            <Link
-              to="/registro"
-              className="text-sm bg-guinda text-white px-4 py-2 rounded-md hover:bg-guinda-dark"
-            >
-              Registrarse
-            </Link>
-          </div>
-        </div>
-      </header>
-
-      <section id="inicio" className="max-w-6xl mx-auto px-6 py-20">
-        <p className="text-sm text-institucional mb-3">
-          Instituto Tecnológico de Saltillo
-        </p>
-        <h1 className="font-display text-4xl md:text-5xl text-guinda-dark max-w-2xl leading-tight">
-          Centro de Emprendurismo y Negocios del ITS
-        </h1>
-        <p className="text-gray-600 max-w-xl mt-5 text-base">
-          Evaluamos la factibilidad de tu proyecto y te acompañamos con
-          asesoría legal, administrativa y de financiamiento.
-        </p>
-        <div className="mt-7 flex flex-wrap gap-3">
-          <Link to="/registro" className="button">Comenzar mi proyecto</Link>
-          <Link to="/vista-previa/emprendedor/inicio" className="button secondary">Explorar interfaces de demostración →</Link>
-        </div>
-        <p className="mt-3 text-xs text-gray-500">Vista previa de Emprendedor, Coordinador y Externo con datos de ejemplo.</p>
+  return <div className="landing">
+    <a className="skip-link" href="#contenido">Saltar al contenido</a>
+    <div className="landing-institution">Instituto Tecnológico de Saltillo <span>La Técnica por la Grandeza de México</span></div>
+    <header className="landing-header"><div className="landing-container landing-header-row">
+      <Link to="/" aria-label="Incubadora ITS · Inicio"><InstitutionalBrand /></Link>
+      <nav aria-label="Navegación principal"><a href="#actualidad">Noticias y eventos</a><a href="#servicios">Servicios</a><a href="#proceso">Cómo empezar</a><a href="#contacto">Contacto</a></nav>
+      <Link to="/login" className="landing-login">Iniciar sesión ↗</Link>
+    </div></header>
+    <main id="contenido"><Newsletter />
+      <section className="landing-hero landing-container">
+        <div><p className="landing-eyebrow">Centro de Emprendurismo y Negocios</p><h2>Tu idea tiene futuro.<br /><em>Construyámoslo.</em></h2><p className="landing-lead">Transforma tu talento en un proyecto con propósito. En la Incubadora ITS te acompañamos desde la primera idea hasta el desarrollo de tu negocio.</p><div className="landing-actions"><Link className="button" to="/registro">Comenzar mi proyecto →</Link><a className="landing-text-link" href="#servicios">Conocer los servicios ↓</a></div><p className="landing-hero-note">Emprendimiento · Innovación · Comunidad ITS</p></div>
+        <div className="landing-feature"><div className="landing-feature-top"><span>DE LA IDEA A LA ACCIÓN</span><span aria-hidden="true">↗</span></div><h2>Un espacio para<br />hacer que suceda.</h2><p>Conocimiento, acompañamiento y herramientas para avanzar con claridad.</p><div className="landing-path">{['Explora tu idea', 'Desarrolla tu proyecto', 'Impulsa tu negocio'].map((title, i) => <div key={title}><span>0{i + 1}</span><strong>{title}</strong></div>)}</div><div className="landing-feature-bottom">INCUBADORA ITS <span>Saltillo, Coahuila</span></div></div>
       </section>
-
-      <section id="eventos" className="max-w-6xl mx-auto px-6 pb-20">
-        <h2 className="font-display text-2xl text-guinda-dark mb-6">
-          Noticias y eventos
-        </h2>
-        <div className="grid md:grid-cols-3 gap-5">
-          {eventos.map((ev) => (
-            <div
-              key={ev.titulo}
-              className="bg-white rounded-lg p-6 shadow-sm"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <span className="text-xs text-institucional font-medium">
-                  {ev.etiqueta}
-                </span>
-                <span className="text-xs text-gray-400">{ev.fecha}</span>
-              </div>
-              <h3 className="font-display text-lg text-guinda-dark mb-2">
-                {ev.titulo}
-              </h3>
-              {ev.detalle && (
-                <p className="text-sm text-gray-600">{ev.detalle}</p>
-              )}
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="bg-white border-t border-gray-200">
-        <div className="max-w-6xl mx-auto px-6 py-16 grid md:grid-cols-3 gap-10">
-          <div>
-            <h3 className="font-display text-lg text-guinda-dark mb-2">
-              Misión
-            </h3>
-            <p className="text-sm text-gray-600">
-              Crear las condiciones para que la idea, el talento y la
-              tecnología generen empresas competitivas.
-            </p>
-          </div>
-          <div>
-            <h3 className="font-display text-lg text-guinda-dark mb-2">
-              Visión
-            </h3>
-            <p className="text-sm text-gray-600">
-              Ser el modelo de incubación que impulsa el desarrollo
-              socioeconómico de la comunidad ITS.
-            </p>
-          </div>
-          <div>
-            <h3 className="font-display text-lg text-guinda-dark mb-2">
-              Valores
-            </h3>
-            <p className="text-sm text-gray-600">
-              Responsabilidad social, ética profesional, honestidad y
-              solidaridad.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <footer className="max-w-6xl mx-auto px-6 py-10 text-sm text-gray-500 flex flex-col md:flex-row gap-2 md:justify-between">
-        <span>Blvd. Venustiano Carranza #2400, Col. Tecnológico, Saltillo, Coahuila</span>
-        <span>844 288 9460 · incubadora.its@saltillo.tecnm.mx</span>
-      </footer>
-    </div>
-  );
+      <section id="servicios" className="landing-services landing-container"><div className="landing-section-heading"><div><p className="landing-eyebrow">Acompañamiento que suma</p><h2>Herramientas para tu siguiente paso.</h2></div><p>Explora lo que puedes hacer en el portal y encuentra el apoyo que necesita tu proyecto.</p></div><div className="landing-service-grid">{services.map(([number, title, description, href]) => <Link className="landing-service" to={href} key={number}><span className="landing-service-number">{number}</span><h3>{title}</h3><p>{description}</p><span className="landing-service-link">Acceder al servicio <span aria-hidden="true">↗</span></span></Link>)}</div><p className="landing-demo-note">Regístrate para presentar tu proyecto o inicia sesión para consultar los servicios de tu cuenta.</p></section>
+      <section id="proceso" className="landing-process"><div className="landing-container"><p className="landing-eyebrow">Empieza con una idea</p><h2>El primer paso está en tus manos.</h2><div className="landing-steps">{[['Crea tu cuenta', 'Regístrate como estudiante ITS o participante externo.'], ['Presenta tu proyecto', 'Completa tu solicitud y comparte la información de tu propuesta.'], ['Avanza con acompañamiento', 'Da seguimiento a la revisión y a las actividades de tu proyecto.']].map(([title, text], i) => <div key={title}><span>0{i + 1}</span><h3>{title}</h3><p>{text}</p></div>)}</div></div></section>
+      <section className="landing-cta landing-container"><div><p className="landing-eyebrow">Talento con propósito</p><h2>Las grandes ideas empiezan<br />con alguien como tú.</h2></div><Link className="button" to="/registro">Crear mi cuenta →</Link></section>
+    </main>
+    <footer id="contacto" className="landing-footer"><div className="landing-container"><div className="landing-footer-grid"><div><InstitutionalBrand /><p>Centro de Emprendurismo y Negocios<br />Instituto Tecnológico de Saltillo</p></div><div><h2>Visítanos</h2><p>Blvd. Venustiano Carranza #2400<br />Col. Tecnológico, Saltillo, Coahuila</p><a href="https://saltillo.tecnm.mx/" target="_blank" rel="noreferrer">Sitio institucional ↗</a></div><div><h2>Tu espacio de emprendimiento</h2><Link to="/login">Acceder al portal</Link><Link to="/registro">Registrarme</Link><a href="#servicios">Explorar servicios</a></div></div><div className="landing-footer-bottom"><span>ITS · Incubadora en Línea</span><span>Emprendimiento · Innovación · Comunidad</span></div></div></footer>
+  </div>;
 }

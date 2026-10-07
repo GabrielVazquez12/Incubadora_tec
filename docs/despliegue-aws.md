@@ -1,5 +1,97 @@
 # Docker local y AWS con RDS
 
+## Galerías publicadas el 6 de octubre de 2026
+
+- Código: `2323f2b`, rama `feature/kike`. Noticias y eventos admiten hasta
+  cinco imágenes o flyers, con descripción accesible, ampliación y retirada.
+  Los borradores conservan sus imágenes privadas; no se añadieron flyers ficticios.
+- Imagen `release-20261006-2323f2b`, digest
+  `sha256:8d5b24e34e1f7bd4a4ac8d229867e3b1a94deba0979035a381f86379520653a7`.
+  Las 23 pruebas del backend pasaron dentro de la imagen final; también la
+  compilación frontend y las comprobaciones de interfaces. Una descarga de
+  PyPI agotó el tiempo de espera: se reutilizó la imagen verificada anterior,
+  comprobando todas las versiones fijadas antes de copiar el código y compilar
+  el frontend. `Dockerfile.production` conserva su construcción habitual.
+- Migración `295fe31b7422` aplicada con código cero por la tarea
+  `0788fdd612bb4fc8a395050a9c66e2d8`. Añade `imagenes_editoriales` sin modificar
+  noticias, eventos ni usuarios existentes.
+- CloudFormation terminó la actualización y ECS quedó estable en revisión
+  `:7`, rollout `COMPLETED`, una tarea activa y ninguna pendiente. Solo se
+  actualizó la imagen; se conservaron RDS, S3, IAM y red.
+- HTTPS devuelve `200` y sirve `/assets/index-DscSrznu.js`; `/api/health`
+  responde `ok`. El boletín conserva tres publicaciones y el evento existente.
+- `scripts/verify-aws.ps1 -PortalFlow` terminó con código cero en la tarea
+  `c198c0d6c40041f0861b1482f717dd8d`: imágenes normalizadas, almacenamiento S3
+  AES256, lectura, retirada, permisos y visibilidad editorial correctos,
+  además de los flujos completos del portal. Se limpiaron los registros SQL
+  temporales y se borraron lógicamente los objetos S3 de prueba.
+- Uso: **Coordinador → Boletín / Eventos → Editar → Imágenes y flyers**.
+  Formatos y límites en [gestión del boletín](boletin.md).
+
+## Rediseño y boletín publicados el 6 de octubre de 2026
+
+- Código: commit `4763ece`, rama `feature/kike`. Portada institucional con
+  logotipos oficiales ITS/TecNM, prioridad para noticias y agenda pública,
+  gestión editorial desde coordinación y rutas públicas de demostración retiradas.
+- Imagen `release-20261006-4763ece`, digest
+  `sha256:ded2ffe23306fee18f3c1d00312196e73488f1e987a11db77fc6d4dfc70845dd`.
+  Las 22 pruebas del backend pasaron dentro de la imagen final. La compilación
+  frontend y las comprobaciones de interfaces también pasaron.
+- Migración `184ed20a6311` aplicada en RDS con código cero por la tarea ECS
+  `21957596113e4617900aac9c82d78a45`. Incorpora publicaciones persistentes y
+  tres artículos iniciales sobre los servicios del portal, vigentes hasta el
+  6 de noviembre. Los eventos se consultan desde el catálogo existente.
+- CloudFormation `UPDATE_COMPLETE`; ECS estable con una tarea, sin pendientes,
+  revisión `:6` de `incubadora-application-web` y rollout `COMPLETED`.
+  Solo se cambió la etiqueta de imagen con la plantilla existente; el plan
+  modificó el servicio sin reemplazarlo y creó una revisión de la tarea de
+  migración. RDS, S3, IAM y red conservaron su configuración.
+- HTTPS: portada, `/health`, `/api/health`, `/api/public/newsletter`,
+  `/brand/its.png`, `/brand/tecnm.png` y `/assets/index-D7dQ9aPA.js` responden
+  correctamente. El JavaScript publicado contiene la nueva portada editorial.
+- `scripts/verify-aws.ps1 -PortalFlow` terminó con código cero en la tarea
+  `60077a6a26154f788ac08a33ce680bc4`. Verificó RDS con TLS, rol ECS, S3 AES256,
+  boletín público, permisos editoriales, borradores ocultos, programación,
+  caducidad, agenda pública y los flujos del portal. Los registros SQL
+  temporales se eliminaron y los objetos S3 se borraron lógicamente.
+- Publicación: https://in-eba33374426a491eac5ff2c493e78050.ecs.us-east-1.on.aws
+  Administración del contenido: **Coordinador → Boletín**. Detalles en
+  [gestión del boletín](boletin.md).
+
+## Actualización publicada el 6 de octubre de 2026
+
+- Código de módulos: commit `e275223`, rama `feature/kike`. Incluye revisión y
+  correcciones de Innovación, asistencia de eventos y constancias PDF privadas.
+- Imagen ECR inmutable: `release-20261006-e275223`, digest
+  `sha256:290a464a9e8b1bfba473eb6b94bd6b12326fcb26273eaa0196e32d1f7ddee257`.
+  La imagen final pasó las 21 pruebas del backend antes de publicarse.
+- Migración `073dc19b5210` aplicada mediante una tarea ECS independiente con
+  el usuario de aplicación y sin credenciales administrativas RDS. Terminó
+  con código cero; el servicio anterior permaneció activo durante la migración.
+- CloudFormation utilizó la plantilla y parámetros existentes, cambiando solo
+  `ImageTag`. El change set mostró modificación del servicio sin reemplazo y
+  una nueva revisión de la definición de tarea de migración. No modificó
+  recursos de RDS, S3, IAM o red.
+- Stack `incubadora-application`: `UPDATE_COMPLETE`. ECS quedó estable con una
+  sola tarea en la revisión `:5` de `incubadora-application-web`. La publicación
+  gradual conservó el 5% de tráfico durante tres minutos y tres minutos de
+  observación según la configuración existente del servicio.
+- HTTPS: `/health` y `/api/health` responden `ok`. La página y el JavaScript
+  `index-D7knEG03.js` responden `200`; OpenAPI expone asistencia y constancias.
+- `./scripts/verify-aws.ps1 -PortalFlow` terminó con código cero. Verificó RDS
+  con TLS, rol ECS, S3 cifrado AES256, registro/login, permisos, anexos privados,
+  proyectos, avances, tareas, eventos gratuitos, cupos y cancelaciones,
+  asistencia y constancias PDF privadas, correcciones y etapas de Innovación,
+  tutorías y rechazo/corrección/admisión de solicitudes externas.
+- Se eliminaron los registros SQL temporales de la prueba y se borraron
+  lógicamente sus objetos S3; el versionado puede conservar versiones anteriores.
+  Los pagos simulados siguen deshabilitados en AWS.
+
+Portal: https://in-eba33374426a491eac5ff2c493e78050.ecs.us-east-1.on.aws
+
+La comprobación de interfaz fue de renderizado y HTTP. Sigue pendiente una
+revisión interactiva en navegador; no se presenta como realizada.
+
 ## Arquitectura preparada
 
 El entorno habitual (`docker-compose.yml`, puerto 5173) conserva PostgreSQL

@@ -1,4 +1,5 @@
 import { EventManagement, EventForm } from './EventManagement';
+import Publications from './Publications.jsx';
 import { Users, Roles } from './Users';
 import { Reports } from './Reports';
 import RegistrationReview from './RegistrationReview';
@@ -7,6 +8,7 @@ import { Application } from '../../shared/applications/Application';
 import { Tutoring } from '../../shared/tutoring/Tutoring';
 
 export const coordinationRoutes = [
+  ['publicaciones', <Publications />],
   ['eventos', <EventManagement />],
   ['usuarios', <Users />],
   ['roles', <Roles />],

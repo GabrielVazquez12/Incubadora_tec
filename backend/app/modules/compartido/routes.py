@@ -112,6 +112,10 @@ def state(db: Session = Depends(get_db), user: Usuario = Depends(get_current_use
         elif collection in ("registrations", "payments", "appointments", "requests", "innovation", "initialRegistrations") and not admin(user):
             query = query.where(model.user == user.id)
         result[collection] = [serialized(row) for row in db.scalars(query)]
+    from app.modules.compartido.editorial_media import galleries
+    event_images = galleries(db, 'event', [e['id'] for e in result['events']])
+    for item in result['events']:
+        item['imagenes'] = event_images.get(item['id'], [])
     counts = dict(db.execute(select(Inscripcion.event, func.count()).where(Inscripcion.estatus == "Confirmada").group_by(Inscripcion.event)).all())
     for event in result["events"]:
         # occupied() en React añade las inscripciones visibles del usuario.

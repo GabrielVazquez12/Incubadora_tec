@@ -205,12 +205,15 @@ VITE_API_URL=http://localhost:8000
 - [x] Modelo de datos y migraciones
 - [x] Autenticación y autorización por rol
 - [x] Gestión de usuarios, proyectos y seguimiento con PostgreSQL
-- [x] Módulo de documentos con revisión e integración S3 configurable (validación en AWS pendiente)
+- [x] Módulo de documentos con revisión e integración S3 configurable (validado en AWS)
 - [x] Reportes exportables a CSV para Excel
 - [x] Constancias PDF de eventos con asistencia verificada por coordinación (sin firmas ni sellos institucionales)
 - [x] Dashboard y reportes para coordinadoras
+- [x] Portada institucional con logotipos oficiales ITS y TecNM
+- [x] Boletín público de noticias, avisos, convocatorias y eventos vigentes; gestión desde coordinación
+- [x] Galerías de imágenes y flyers en noticias y eventos, con ampliación, descripción accesible y almacenamiento privado en S3
 - [ ] Integración de pagos (sandbox)
-- [ ] Deploy en AWS
+- [x] Deploy en AWS con HTTPS, RDS privada y documentos S3; actualización verificada el 6 de octubre de 2026
 
 Consulta [documentos y anexos privados](docs/documentos.md) para configurar
 S3, aplicar la migración y usar el flujo de revisión y correcciones.

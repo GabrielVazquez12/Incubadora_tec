@@ -1,3 +1,4 @@
+import InstitutionalBrand from '../../shared/InstitutionalBrand.jsx';
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import api from "../../shared/api/client.js";
@@ -35,10 +36,10 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-appbg flex items-center justify-center px-4 font-body">
+    <div className="auth-page min-h-screen bg-appbg flex items-center justify-center px-4 font-body">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <span className="font-display text-2xl text-guinda">ITS</span>
+          <Link to="/" aria-label="Volver al inicio"><InstitutionalBrand /></Link>
         </div>
 
         <div className="bg-white rounded-lg shadow-sm p-8">

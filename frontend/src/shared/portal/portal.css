@@ -48,7 +48,7 @@
 .text-button:hover, .text-link:hover { text-decoration: underline; }
 .text-button.danger { color: #a23748; }
 .full-width { width: 100%; }
-.panel { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 26px; margin-bottom: 24px; }
+.panel { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 26px; margin-bottom: 24px; box-shadow: 0 4px 18px #3f0f2104; }
 .panel > :last-child { margin-bottom: 0; }
 .two-columns { display: grid; grid-template-columns: 1.2fr 1fr; gap: 24px; }
 .two-columns > * { min-width: 0; }
@@ -194,7 +194,10 @@
   .registration-signatures { grid-template-columns: 1fr; }
   .institution-bar { font-size: 9px; padding: 8px 16px; }
   .institution-bar span { display: none; }
-  .portal-header-inner { padding: 18px 16px; align-items: flex-start; }
+  .portal-header-inner { padding: 18px 16px; align-items: flex-start; flex-wrap: wrap; gap: 18px; }
+  .portal-header-inner .account { max-width: none; width: 100%; justify-content: flex-start; }
+  .portal-header-inner .account > div { text-align: left; }
+  .portal-header-inner .account .text-button { margin-left: auto; }
   .brand { font-size: 19px; gap: 9px; }
   .brand small { display: none; }
   .brand-seal { width: 36px; height: 36px; font-size: 15px; }

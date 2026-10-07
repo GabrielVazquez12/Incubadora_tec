@@ -1,4 +1,6 @@
 import { DownloadRegistration } from '../src/shared/registration/DownloadRegistration.jsx';
+import { ImageGallery } from '../src/shared/EditorialImages.jsx';
+import { PublicationCard } from '../src/modules/publico/Newsletter.jsx';
 import { FullRegistration } from '../src/shared/registration/FullRegistration.jsx';
 import { registrationDate, previewRegistrationMetadata } from '../src/shared/registration/metadata.js';
 import assert from 'node:assert/strict';
@@ -11,11 +13,33 @@ import { initialData } from '../src/shared/portal/data.js';
 import { occupied } from '../src/shared/events/helpers.js';
 
 function render(path) {
-  return renderToString(<StaticRouter location={path}><PortalProvider><AppRoutes /></PortalProvider></StaticRouter>);
+  return renderToString(<StaticRouter location={path}><PortalProvider><AppRoutes enablePreview /></PortalProvider></StaticRouter>);
+}
+
+const publicLanding = renderToString(<StaticRouter location="/"><PortalProvider><AppRoutes /></PortalProvider></StaticRouter>);
+const gallery = renderToString(<ImageGallery images={[{ id: 'flyer', alt: 'Flyer del taller <ITS>', url: '/public/media/flyer' }]} />);
+assert.ok(gallery.includes('alt="Flyer del taller &lt;ITS&gt;"'));
+assert.ok(gallery.includes('http://localhost:8000/public/media/flyer'));
+assert.ok(gallery.includes('Ampliar imagen: Flyer del taller'));
+const newsCard = renderToString(<PublicationCard item={{ id: 'news', titulo: 'Taller ITS', resumen: 'Aprende con la comunidad', categoria: 'Noticia', fecha: '2026-10-06', imagenes: [{ id: 'flyer', alt: 'Flyer vertical', url: '/public/media/flyer' }, { id: 'photo', alt: 'Fotografía', url: '/public/media/photo' }] }} featured onRead={() => {}} />);
+assert.ok(newsCard.indexOf('alt="Flyer vertical"') < newsCard.indexOf('Taller ITS'), 'The lead image should precede the article title');
+assert.ok(newsCard.includes('editorial-cover'));
+assert.ok(newsCard.replace(/<!--.*?-->/g, '').includes('2 imágenes'));
+assert.ok(!newsCard.includes('alt="Fotografía"'), 'Secondary images belong in the full article');
+assert.ok(publicLanding.includes('Boletín de la comunidad ITS'));
+assert.ok(!publicLanding.includes('/vista-previa'));
+assert.ok(!publicLanding.includes('Explorar vista previa'));
+assert.ok(publicLanding.indexOf('newsletter-title') < publicLanding.indexOf('Tu idea tiene futuro'));
+for (const path of ['/vista-previa', '/vista-previa/emprendedor/inicio', '/vista-previa/coordinador/inicio', '/vista-previa/innovatecnm/inicio']) {
+  const removed = renderToString(<StaticRouter location={path}><PortalProvider><AppRoutes /></PortalProvider></StaticRouter>);
+  assert.ok(removed.includes('Página no encontrada'), `Public demo route remains accessible: ${path}`);
 }
 
 const pages = [
   ['emprendedor/inicio', 'Hola, Diego'],
+  ['emprendedor/boletin', 'Actualidad de la incubadora'],
+  ['coordinador/boletin', 'Actualidad de la incubadora'],
+  ['externo/boletin', 'Actualidad de la incubadora'],
   ['emprendedor/proyectos', 'Mis proyectos'],
   ['emprendedor/proyectos/nuevo', 'Nuevo proyecto'],
   ['emprendedor/proyectos/ecopack', 'EcoPack'],
@@ -88,7 +112,7 @@ workflowsData.innovation = [
 ];
 workflowsData.events = [{ id: 'attended-event', nombre: 'Taller realizado', descripcion: 'Actividad', tipo: 'Taller', fecha: '2000-01-01', hora: '09:00', modalidad: 'Presencial', precio: 0, cupo: 20, estatus: 'Activo' }];
 workflowsData.registrations = [{ id: 'attended-registration', user: 'diego', event: 'attended-event', estatus: 'Confirmada', asistio: true }];
-const renderWorkflow = path => renderToString(<StaticRouter location={path}><PortalContext.Provider value={{ data: workflowsData, preview: true, loading: false, paymentsMode: 'prueba', notify() {}, refresh() {} }}><AppRoutes /></PortalContext.Provider></StaticRouter>);
+const renderWorkflow = path => renderToString(<StaticRouter location={path}><PortalContext.Provider value={{ data: workflowsData, preview: true, loading: false, paymentsMode: 'prueba', notify() {}, refresh() {} }}><AppRoutes enablePreview /></PortalContext.Provider></StaticRouter>);
 const ownProposals = renderWorkflow('/vista-previa/innovatecnm/registros?rol=estudiante');
 assert.ok(ownProposals.includes('Robot propio'));
 assert.ok(!ownProposals.includes('Propuesta privada ajena'));

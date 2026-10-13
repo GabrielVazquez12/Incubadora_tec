@@ -18,6 +18,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN mkdir -p /app/certs && curl --fail --silent --show-error \
     https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem \
     -o /app/certs/rds-global-bundle.pem
+# curl is only a build helper; keep its unused networking libraries out of runtime.
+RUN apt-get purge -y --auto-remove curl && rm -rf /var/lib/apt/lists/*
 COPY backend/ ./
 COPY --from=frontend /build/dist /app/static
 USER app

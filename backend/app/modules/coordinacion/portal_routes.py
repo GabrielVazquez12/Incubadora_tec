@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.auth.security import get_current_user
 from app.database import get_db
 from app.models import Usuario, Proyecto, TipoEvento, Solicitud, RegistroInicial
-from app.schemas.portal import RegistrationReviewInput
+from app.schemas.portal import RegistrationReviewInput, EventTypeInput
 from app.initial_registration import validate_data, merge_files
 from app.modules.compartido.services import fail, require_admin, record, registration_event
 
@@ -14,12 +14,9 @@ router = APIRouter(prefix="/portal", tags=["coordinacion"])
 
 
 @router.post("/event-types")
-def event_type(payload: dict, db: Session = Depends(get_db), user: Usuario = Depends(get_current_user)):
+def event_type(payload: EventTypeInput, db: Session = Depends(get_db), user: Usuario = Depends(get_current_user)):
     require_admin(user)
-    name = payload.get("nombre", "")
-    if not isinstance(name, str) or not 1 <= len(name.strip()) <= 60:
-        fail("Escribe un nombre de hasta 60 caracteres.")
-    name = name.strip()
+    name = payload.nombre
     if db.scalar(select(TipoEvento).where(func.lower(TipoEvento.nombre) == name.lower())):
         fail("Ese tipo de evento ya existe.", 409)
     db.add(TipoEvento(nombre=name))

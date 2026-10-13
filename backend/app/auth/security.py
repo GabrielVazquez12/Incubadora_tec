@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from uuid import UUID
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
@@ -19,7 +20,10 @@ def hash_password(password: str) -> str:
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        return pwd_context.verify(plain_password, hashed_password)
+    except (ValueError, TypeError):
+        return False
 
 
 def create_access_token(data: dict) -> str:
@@ -41,14 +45,12 @@ def get_current_user(
         payload = jwt.decode(
             token, settings.jwt_secret, algorithms=[settings.jwt_algorithm]
         )
-        user_id: str = payload.get("sub")
-        if user_id is None:
-            raise credentials_exception
-    except JWTError:
+        user_id = UUID(payload.get("sub", ""))
+    except (JWTError, ValueError, TypeError, AttributeError):
         raise credentials_exception
 
     user = db.query(Usuario).filter(Usuario.id == user_id).first()
-    if user is None:
+    if user is None or payload.get("version", 0) != user.auth_version:
         raise credentials_exception
     return user
 

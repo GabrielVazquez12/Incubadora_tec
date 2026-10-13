@@ -9,7 +9,7 @@ export const PortalContext = Context;
 const emptyData = () => Object.fromEntries([...Object.keys(initialData()), 'members', 'documents', 'history', 'initialRegistrations'].map(key => [key, []]));
 export const errorMessage = error => {
   const detail = error.response?.data?.detail;
-  return typeof detail === 'string' ? detail : Array.isArray(detail) ? detail.map(e => e.msg).join('. ') : 'No se pudo conectar con el servidor. Inténtalo de nuevo.';
+  return typeof detail === 'string' ? detail : Array.isArray(detail) ? detail.map(e => [e.loc?.filter(part => !['body', 'query', 'path'].includes(part)).join('.'), e.msg].filter(Boolean).join(': ')).join('. ') : 'No se pudo conectar con el servidor. Inténtalo de nuevo.';
 };
 
 export function PortalProvider({ children }) {
@@ -78,7 +78,7 @@ export function PortalProvider({ children }) {
       const response = await action();
       if (!(await refresh())) {
         setError('La operación se guardó, pero no pudimos actualizar la pantalla. Pulsa Actualizar datos.');
-        return null;
+        return response.data;
       }
       return response.data;
     } catch (err) {

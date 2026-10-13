@@ -14,6 +14,7 @@ from app.database import get_db
 from app.models import Publication, Evento, EditorialImage, RolUsuario
 from app.auth.security import require_role, get_current_user
 from app.document_storage import store_bytes, read_bytes, s3_client
+from app.schemas.validation import valid_text
 
 router = APIRouter(tags=['imagenes'])
 admin = Depends(require_role(RolUsuario.admin))
@@ -80,9 +81,16 @@ def list_images(kind: Kind, key: UUID, db: Session = Depends(get_db)):
 @router.post('/admin/media/{kind}/{key}', status_code=201, dependencies=[admin])
 def upload(kind: Kind, key: UUID, file: UploadFile = File(...), alt: str = Form(..., min_length=1, max_length=300), db: Session = Depends(get_db)):
     description = alt.strip()
+    try:
+        valid_text(description)
+    except ValueError:
+        raise HTTPException(422, 'La descripción contiene caracteres no válidos.') from None
     if not description:
         raise HTTPException(422, 'Describe la imagen para las personas que usan lectores de pantalla.')
-    content = file.file.read(LIMIT + 1)
+    try:
+        content = file.file.read(LIMIT + 1)
+    finally:
+        file.file.close()
     if not content or len(content) > LIMIT:
         raise HTTPException(422, 'La imagen debe pesar como máximo 8 MB.')
     content = normalize(content)

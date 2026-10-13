@@ -4,7 +4,7 @@ import { phoneError } from './validation.js';
 import { registrationSections } from './reviewLayout.js';
 import spec from './registration-fields.json';
 import { usePortal } from '../portal/PortalContext.jsx';
-import { Field, TextArea, Panel, Table, Badge } from '../portal/ui.jsx';
+import { Form, Field, TextArea, Panel, Table, Badge } from '../portal/ui.jsx';
 import { uid } from '../portal/data.js';
 import { registrationDate } from './metadata';
 import { DownloadRegistration } from './DownloadRegistration';
@@ -72,6 +72,10 @@ export function FullRegistration({ registration, person, onReady, administrative
     const automatic = name === 'identificacion.folio' || name === 'identificacion.fecha';
     const val = name === 'identificacion.folio' ? folio : name === 'identificacion.fecha' ? emissionDate : (admin ? administration : values)[name] || '';
     const props = { name, value: val, readOnly: automatic, placeholder: name === 'identificacion.folio' ? 'Se asigna al guardar' : undefined, required: !admin && field.required, disabled: busy || reading || readOnly || (admin ? !administrative : administrative), onChange: e => change(name, e.target.value, admin), maxLength: field.type === 'textarea' ? 5000 : 300 };
+    if (name === 'empresa.nombre' || field.key === 'especialidad') props.maxLength = 160;
+    if (field.key === 'dependientes_total') props.readOnly = true;
+    if (field.key === 'nacimiento') props.max = registrationDate();
+    if (field.key === 'cp') { props.pattern = '[0-9]{5}'; props.maxLength = 5; }
     if (field.type === 'tel') {
       props.placeholder = 'Ej. 8441234567 (opcional)';
       props.title = 'De 10 a 20 caracteres. Si no tienes este teléfono, deja el campo vacío.';
@@ -81,7 +85,7 @@ export function FullRegistration({ registration, person, onReady, administrative
     const label = field.label + (field.required && !admin ? ' *' : '');
     if (field.type === 'textarea') return <TextArea key={name} label={label} {...props} />;
     if (field.type === 'select') return <Field key={name} label={label} {...props}><option value="">Selecciona…</option>{field.options.map(o => <option key={o}>{o}</option>)}</Field>;
-    return <Field key={name} label={label} type={field.type} {...props} min={field.type === 'number' ? 0 : undefined} step={field.key.startsWith('ingreso') ? '0.01' : '1'} />;
+    return <Field key={name} label={label} type={field.type} {...props} min={field.type === 'number' ? (field.key === 'numero_solicitantes' ? 1 : 0) : undefined} max={field.type === 'number' ? (field.key === 'numero_solicitantes' ? 20 : 1000000000) : props.max} step={field.key.startsWith('ingreso') ? '0.01' : '1'} />;
   }
   async function attach(key, file) {
     if (!file) return;
@@ -111,7 +115,7 @@ export function FullRegistration({ registration, person, onReady, administrative
     notify(administrative ? 'Revisión guardada.' : finish ? 'Registro enviado. Coordinación revisará tus datos y anexos.' : 'Borrador guardado. Puedes continuar después.');
     if (!administrative) onReady?.(null);
   }
-  return <form onSubmit={save} className="form-stack" data-unsaved={dirty || reading ? 'true' : undefined}>
+  return <Form onSubmit={save} className="form-stack" data-unsaved={dirty || reading ? 'true' : undefined}>
     <Panel title="MODELO DE INCUBACIÓN DE EMPRESAS DEL SNEST">
       <p>PROCESO DE PRE-INCUBACIÓN · PROCEDIMIENTO DE CONTACTO INICIAL</p>
       <h2>FORMATO DE REGISTRO</h2><p>Código: {spec.code} · Revisión: {spec.revision} · Fecha de emisión: {emissionDate.split('-').reverse().join('/')}</p>
@@ -156,5 +160,5 @@ export function FullRegistration({ registration, person, onReady, administrative
     {error && <p className="error" role="alert">{error}</p>}
     {!readOnly && <div className="form-actions">{administrative ? <button className="button" disabled={busy}>Guardar revisión</button> : <><button className="button secondary" value="Borrador" formNoValidate disabled={busy || reading}>Guardar borrador</button><button className="button" value="Pendiente" disabled={busy || reading}>Enviar a revisión</button></>}</div>}
     {complete && !administrative && <p className="info-box">Registro enviado a revisión.</p>}
-  </form>;
+  </Form>;
 }

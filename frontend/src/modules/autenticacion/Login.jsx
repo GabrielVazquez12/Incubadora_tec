@@ -3,6 +3,8 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import api from "../../shared/api/client.js";
 import { jwtDecode } from "jwt-decode";
+import { Form } from '../../shared/portal/ui.jsx';
+import { errorMessage } from '../../shared/portal/PortalContext.jsx';
 
 export default function Login() {
   const [correo, setCorreo] = useState("");
@@ -29,7 +31,7 @@ export default function Login() {
       else if (payload.rol === "estudiante") navigate("/emprendedor/inicio");
       else navigate("/externo/inicio");
     } catch (err) {
-      setError("Correo o contraseña incorrectos.");
+      setError(errorMessage(err));
     } finally {
       setCargando(false);
     }
@@ -47,7 +49,7 @@ export default function Login() {
             Bienvenido de vuelta
           </h1>
 
-          <form onSubmit={manejarEnvio} className="space-y-5">
+          <Form onSubmit={manejarEnvio} busy={cargando} className="space-y-5">
             <div>
               <label
                 htmlFor="correo"
@@ -58,6 +60,8 @@ export default function Login() {
               <input
                 id="correo"
                 type="email"
+                maxLength={254}
+                autoComplete="username"
                 required
                 placeholder="nombre@correo.com"
                 value={correo}
@@ -76,6 +80,8 @@ export default function Login() {
               <input
                 id="password"
                 type="password"
+                maxLength={72}
+                autoComplete="current-password"
                 required
                 placeholder="••••••••"
                 value={password}
@@ -97,7 +103,7 @@ export default function Login() {
             >
               {cargando ? "Entrando..." : "Iniciar sesión"}
             </button>
-          </form>
+          </Form>
             
           <p className="text-center text-sm text-gray-600 mt-6">
             ¿No tienes cuenta?{" "}

@@ -26,6 +26,24 @@ from app.models import Usuario, RolUsuario
 
 
 class PortalTest(unittest.TestCase):
+    def test_form_security_types_errors_and_password_revocation(self):
+        person = self.create_user("form_security")
+        token = self.login("form_security@example.com")
+        coordinator = self.login("admin@example.com")
+        invalid = self.request("POST", "/auth/registro", {"nombre": "   ", "correo": "invalid", "password": "private-password-value", "rol": "estudiante"}, status=422)
+        self.assertNotIn("private-password-value", json.dumps(invalid))
+        self.request("POST", "/auth/registro", {"nombre": "Otro", "correo": "FORM_SECURITY@example.com", "password": "TestPass2026!", "rol": "estudiante"}, status=409)
+        self.request("POST", "/portal/registrations/" + str(uuid4()) + "/attendance", {"asistio": "false"}, coordinator, status=422)
+        self.request("PUT", f"/portal/users/{person['id']}", {"nombre": "Nombre actualizado", "correo": "FORM_SECURITY@example.com", "rol": "estudiante", "password": "NewPassword2026!"}, coordinator)
+        self.request("GET", "/portal/state", token=token, status=401)
+        self.request("POST", "/auth/login", {"correo": "form_security@example.com", "password": "TestPass2026!"}, status=401)
+        fresh = self.request("POST", "/auth/login", {"correo": "form_security@example.com", "password": "NewPassword2026!"})["access_token"]
+        self.request("GET", "/portal/state", token=fresh)
+        from app.auth.security import create_access_token
+        malformed = create_access_token({"sub": "invalid-user-id", "rol": "admin"})
+        self.request("GET", "/portal/state", token=malformed, status=401)
+        self.request("POST", "/auth/login", {"correo": "form_security@example.com", "password": "x" * 100000}, status=413)
+
     @classmethod
     def setUpClass(cls):
         cls.name = "test_portal_" + uuid4().hex
@@ -354,7 +372,7 @@ class PortalTest(unittest.TestCase):
         self.assertEqual(upgraded["user"]["rol"], "estudiante")
         self.assertEqual(upgraded["data"]["projects"][0]["nombre"], "Idea externa")
         self.request("PUT", f"/portal/requests/{requestid}", {**application, "estatus": "Aprobada"}, admin, status=400)
-        proposal = {"nombre": "Robot", "equipo": "Equipo", "lider": "Alice", "asesor": "Docente", "descripcion": "Robot de prueba", "modulo": "InnoBótica", "categoria": "Minisumo"}
+        proposal = {"nombre": "Robot", "equipo": "Equipo", "lider": "Alice", "asesor": "Docente", "descripcion": "Robot de prueba", "modulo": "InnoBótica", "categoria": "Robots Minisumo"}
         innovationid = str(uuid4())
         self.request("PUT", f"/portal/innovation/{innovationid}", proposal, a)
         self.request("PUT", f"/portal/innovation/{innovationid}", {**proposal, "estatus": "En revisión", "estatus_anterior": "Borrador"}, a)

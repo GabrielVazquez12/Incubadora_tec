@@ -8,3 +8,8 @@ export function registrationError(values) {
   return ['nombre', 'descripcion', 'producto_servicio'].some(field => !values[field]?.trim())
     ? 'Completa el nombre del proyecto, el problema y el producto o servicio.' : '';
 }
+
+export function passwordError(value, minimum = 8) {
+  return value.length < minimum || new TextEncoder().encode(value).length > 72
+    ? `La contraseña debe tener al menos ${minimum} caracteres y hasta 72 bytes.` : '';
+}

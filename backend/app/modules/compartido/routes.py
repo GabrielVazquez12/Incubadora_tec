@@ -30,6 +30,7 @@ from app.models import (
     RegistroInicial,
 )
 from app.schemas.portal import RegistrationInput, AttendanceInput
+from app.schemas.validation import validation_errors
 from app.modules.compartido.services import (
     today,
     has_started,
@@ -138,7 +139,7 @@ def save(collection: str, key: UUID, payload: dict,
     try:
         values = SCHEMAS[collection].model_validate(payload).model_dump()
     except ValidationError as error:
-        fail("; ".join(f"{'.'.join(map(str, e['loc']))}: {e['msg']}" for e in error.errors()), 422)
+        fail(validation_errors(error.errors()), 422)
     row = db.scalar(select(MODELS[collection]).where(MODELS[collection].id == key).with_for_update())
     new = row is None
 

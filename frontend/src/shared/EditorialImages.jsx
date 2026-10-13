@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import api from './api/client.js';
 import { errorMessage } from './portal/PortalContext.jsx';
 import { Modal } from './portal/ui.jsx';
@@ -31,6 +31,7 @@ export function ImageGallery({ images = [], authenticated = false, variant = 'ga
 }
 
 export function ImageEditor({ kind, itemId, onChanged }) {
+  const inFlight = useRef(false);
   const [images, setImages] = useState([]);
   const [file, setFile] = useState(null);
   const [alt, setAlt] = useState('');
@@ -48,21 +49,25 @@ export function ImageEditor({ kind, itemId, onChanged }) {
     return () => controller.abort();
   }, [kind, itemId, attempt]);
   async function upload() {
+    if (inFlight.current) return;
     if (!file || !alt.trim()) { setError('Selecciona una imagen y escribe una descripción breve.'); return; }
-    if (file.size > 8 * 1024 * 1024) { setError('La imagen debe pesar como máximo 8 MB.'); return; }
+    if (!file.size || file.size > 8 * 1024 * 1024) { setError('La imagen no puede estar vacía y debe pesar como máximo 8 MB.'); return; }
+    inFlight.current = true;
     setBusy(true); setError('');
     try {
       const form = new FormData(); form.append('file', file); form.append('alt', alt.trim());
       const response = await api.post(`/admin/media/${kind}/${itemId}`, form);
       setImages(previous => [...previous, response.data]); setFile(null); setAlt(''); setInputKey(n => n + 1); await onChanged?.();
     } catch (e) { setError(errorMessage(e)); }
-    finally { setBusy(false); }
+    finally { inFlight.current = false; setBusy(false); }
   }
   async function remove(image) {
+    if (inFlight.current || !window.confirm('¿Retirar esta imagen de la galería?')) return;
+    inFlight.current = true;
     setBusy(true); setError('');
     try { await api.delete(`/admin/media/${image.id}`); setImages(previous => previous.filter(item => item.id !== image.id)); await onChanged?.(); }
     catch (e) { setError(errorMessage(e)); }
-    finally { setBusy(false); }
+    finally { inFlight.current = false; setBusy(false); }
   }
   return <section className="editorial-editor" aria-label="Imágenes y flyers"><h3>Imágenes y flyers</h3><p className="helper">Hasta cinco imágenes JPG, PNG o WebP de 8 MB cada una. Los flyers se muestran completos, sin recortar.</p>{!itemId ? <p className="helper">Guarda primero la publicación o el evento para adjuntar sus imágenes.</p> : <>
     {loading && <p role="status">Cargando galería…</p>}

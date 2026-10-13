@@ -1,0 +1,124 @@
+{
+  "certamen": {
+    "title": "Certamen de Proyectos",
+    "description": "Selecciona el área que mejor representa tu propuesta de innovación.",
+    "items": [
+      [
+        "Sector Agroindustrial",
+        "Campo, pesca, acuacultura, tecnificación y sostenibilidad."
+      ],
+      [
+        "Industria Eléctrica y Electrónica",
+        "Hardware, potencia, control, semiconductores y sistemas embebidos."
+      ],
+      [
+        "Sector Energético y Electromovilidad",
+        "Energías renovables, almacenamiento, vehículos e infraestructura de recarga."
+      ],
+      [
+        "Tecnologías para la Salud Humana",
+        "Salud digital, telemedicina, dispositivos médicos y biotecnología."
+      ],
+      [
+        "Sostenibilidad Ambiental",
+        "Restauración ambiental, resiliencia y comunidades sostenibles."
+      ],
+      [
+        "Bienes de Consumo Final",
+        "Productos y servicios para el consumidor final."
+      ]
+    ]
+  },
+  "hackatec": {
+    "title": "HackaTec",
+    "description": "Un reto, un equipo y nuevas maneras de resolver problemas.",
+    "items": [
+      [
+        "Ecosistemas de Desarrollo",
+        "Registra a tu equipo y organiza su propuesta de solución."
+      ],
+      [
+        "Tecnologías Emergentes",
+        "Registra a tu equipo y organiza su propuesta de solución."
+      ],
+      [
+        "Tecnologías para la Gestión Pública",
+        "Registra a tu equipo y organiza su propuesta de solución."
+      ],
+      [
+        "Tecnologías para el Entretenimiento",
+        "Registra a tu equipo y organiza su propuesta de solución."
+      ],
+      [
+        "Software Inteligente",
+        "Registra a tu equipo y organiza su propuesta de solución."
+      ],
+      [
+        "HackaHer",
+        "Registra a tu equipo y organiza su propuesta de solución."
+      ]
+    ]
+  },
+  "innobotica": {
+    "title": "InnoBótica",
+    "description": "Ingeniería, creatividad y tecnología en movimiento.",
+    "items": [
+      [
+        "Robots Minisumo",
+        "Consulta tu categoría y prepara la participación de tu equipo."
+      ],
+      [
+        "Robots Seguidores de Línea",
+        "Consulta tu categoría y prepara la participación de tu equipo."
+      ],
+      [
+        "Robótica Aplicada",
+        "Consulta tu categoría y prepara la participación de tu equipo."
+      ],
+      [
+        "Robots Humanoides",
+        "Consulta tu categoría y prepara la participación de tu equipo."
+      ],
+      [
+        "Robots Buscadores",
+        "Consulta tu categoría y prepara la participación de tu equipo."
+      ],
+      [
+        "Vehículos Aéreos No Tripulados (VANT)",
+        "Consulta tu categoría y prepara la participación de tu equipo."
+      ],
+      [
+        "Sistemas Aeroespaciales tipo CanSat",
+        "Consulta tu categoría y prepara la participación de tu equipo."
+      ],
+      [
+        "Robot Soccer",
+        "Consulta tu categoría y prepara la participación de tu equipo."
+      ],
+      [
+        "Exhibición de Robótica Bioinspirada",
+        "Consulta tu categoría y prepara la participación de tu equipo."
+      ]
+    ]
+  },
+  "innovaccion": {
+    "title": "InnovAcción",
+    "description": "Conecta tus ideas con nuevas oportunidades de transformación.",
+    "items": [
+      [
+        "InnovAcción",
+        "Prepara una propuesta de participación. La convocatoria institucional definirá sus requisitos y fechas."
+      ]
+    ]
+  },
+  "retos": {
+    "title": "Retos de Transformación Nacional",
+    "description": "Propuestas tecnológicas para los desafíos de nuestro entorno.",
+    "items": [
+      [
+        "Retos de Transformación Nacional",
+        "Registra una propuesta. La institución definirá los retos y las condiciones de participación."
+      ]
+    ]
+  }
+}

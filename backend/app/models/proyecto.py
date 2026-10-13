@@ -1,7 +1,7 @@
 
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, UniqueConstraint, CheckConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -9,7 +9,7 @@ from app.database import Base
 
 class Proyecto(Base):
     __tablename__ = "proyectos"
-    __table_args__ = (UniqueConstraint("solicitud_id", name="uq_proyecto_solicitud"),)
+    __table_args__ = (UniqueConstraint("solicitud_id", name="uq_proyecto_solicitud"), CheckConstraint("progreso BETWEEN 0 AND 100", name="ck_proyecto_progreso"))
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     registro_id = Column(UUID(as_uuid=True), ForeignKey("registros_iniciales.id"), nullable=True, unique=True)

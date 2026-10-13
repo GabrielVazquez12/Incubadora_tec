@@ -11,6 +11,12 @@ import { AppRoutes } from '../src/App.jsx';
 import { PortalProvider, PortalContext } from '../src/shared/portal/PortalContext.jsx';
 import { initialData } from '../src/shared/portal/data.js';
 import { occupied } from '../src/shared/events/helpers.js';
+import { Form, Field } from '../src/shared/portal/ui.jsx';
+
+const pendingForm = renderToString(<PortalContext.Provider value={{ busy: true }}><Form><Field label="Nombre" required /><button>Guardar</button></Form></PortalContext.Provider>);
+assert.ok(pendingForm.includes('aria-busy="true"'));
+assert.ok(pendingForm.includes('<fieldset disabled=""'));
+assert.ok(pendingForm.includes('maxLength="160"'));
 
 function render(path) {
   return renderToString(<StaticRouter location={path}><PortalProvider><AppRoutes enablePreview /></PortalProvider></StaticRouter>);

@@ -46,6 +46,13 @@ class MigracionesTest(unittest.TestCase):
                 session.add(project)
                 session.commit()
                 user_id, project_id = user.id, project.id
+                with self.assertRaises(IntegrityError):
+                    session.execute(text("UPDATE proyectos SET progreso = 101 WHERE id = :id"), {"id": project_id})
+                session.rollback()
+                session.add(Usuario(nombre="Duplicado", correo="PRUEBA@example.test", password_hash="test", rol=RolUsuario.estudiante))
+                with self.assertRaises(IntegrityError):
+                    session.commit()
+                session.rollback()
                 session.add(IntegranteProyecto(proyecto_id=project_id, usuario_id=user_id))
                 session.commit()
                 session.add(IntegranteProyecto(proyecto_id=project_id, usuario_id=user_id))

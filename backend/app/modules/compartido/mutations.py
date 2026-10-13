@@ -1,6 +1,8 @@
 
 from sqlalchemy import select
 import base64
+import json
+from pathlib import Path
 from app.config import settings
 from app.document_storage import store_bytes
 from app.models import Usuario, RolUsuario, Proyecto, Horario, Tutoria, Solicitud, Innovacion
@@ -16,6 +18,8 @@ from app.modules.compartido.services import (
     registration_event,
 )
 
+INNOVATION_CATALOG = json.loads((Path(__file__).resolve().parents[2] / "innovation_catalog.json").read_text(encoding="utf-8"))
+
 
 def save_initial_registrations(db, user, key, values, row, payload, new, collection):
     if row and row.user != user.id and not admin(user):
@@ -24,12 +28,7 @@ def save_initial_registrations(db, user, key, values, row, payload, new, collect
         if new:
             fail("El registro lo inicia el solicitante.", 403)
         # Los campos de coordinación se guardan separados de las respuestas.
-        admin_values = {**values["administracion"], "identificacion.numero_solicitantes": row.datos.get("identificacion.numero_solicitantes", "1")}
-        count = admin_values.pop("identificacion.numero_solicitantes")
-        from app.initial_registration import fields
-        allowed = dict(fields({"identificacion.numero_solicitantes": count}, True))
-        if any(k not in allowed or len(v) > 5000 for k, v in admin_values.items()):
-            fail("Campos de coordinación no válidos.", 422)
+        admin_values = validate_data(values["administracion"], administrative=True, participant_data=row.datos)
         values = {"administracion": admin_values}
     else:
         if row and row.estatus not in ("Borrador", "Correcciones solicitadas"):
@@ -92,6 +91,8 @@ def save_appointments(db, user, key, values, row, payload, new, collection):
 def save_innovation(db, user, key, values, row, payload, new, collection):
     if user.rol == RolUsuario.externo or (row and not admin(user) and row.user != user.id):
         fail("No tienes acceso a esta propuesta.", 403)
+    if new and not any(values["modulo"] == section["title"] and values["categoria"] in [item[0] for item in section["items"]] for section in INNOVATION_CATALOG.values()):
+        fail("Selecciona un evento y una categoría del catálogo de Innovatec.", 422)
     previous = row.datos.get("estatus", "Borrador") if row else None
     expected = values.pop("estatus_anterior")
     observations = values.pop("observaciones").strip()

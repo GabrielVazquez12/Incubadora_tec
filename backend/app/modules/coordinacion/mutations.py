@@ -29,6 +29,10 @@ def save_users(db, user, key, values, row, payload, new, collection):
     if new and not password:
         fail("Indica una contraseña inicial de al menos 8 caracteres.")
     values["correo"] = values["correo"].lower()
+    if db.scalar(select(Usuario.id).where(func.lower(func.trim(Usuario.correo)) == values["correo"], Usuario.id != key).limit(1)):
+        fail("Ese correo ya está registrado.", 409)
+    if row and (password or values["rol"] != row.rol.value):
+        values["auth_version"] = row.auth_version + 1
     values["rol"] = RolUsuario(values["rol"])
     if password:
         values["password_hash"] = hash_password(password)

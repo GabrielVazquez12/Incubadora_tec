@@ -1,0 +1,73 @@
+@font-face { font-family: 'Cormorant Garamond'; src: url('/fonts/cormorant-garamond-latin.woff2') format('woff2'); font-style: normal; font-weight: 400 700; font-display: swap; }
+@font-face { font-family: 'Cormorant Garamond'; src: url('/fonts/cormorant-garamond-italic-latin.woff2') format('woff2'); font-style: italic; font-weight: 400 700; font-display: swap; }
+@font-face { font-family: Montserrat; src: url('/fonts/montserrat-latin.woff2') format('woff2'); font-style: normal; font-weight: 400 700; font-display: swap; }
+
+:root {
+  color-scheme: light;
+  --color-primary: #700020;
+  --color-primary-dark: #4d0016;
+  --color-primary-soft: #f3e8ed;
+  --color-silver: #909090;
+  --color-ink: #2b2b2e;
+  --color-muted: #625d60;
+  --color-navy: #183050;
+  --color-paper: #f7f5f2;
+  --color-surface: #ffffff;
+  --color-border: #dedad7;
+  --color-success: #245c3e;
+  --color-success-soft: #e8f3ec;
+  --color-warning: #755015;
+  --color-warning-soft: #fbf2df;
+  --color-error: #a3293e;
+  --color-error-soft: #fbe9ed;
+  --color-info: #183050;
+  --color-info-soft: #e9eff6;
+  --color-focus: #175e9a;
+  --font-display: 'Cormorant Garamond', Cambria, Georgia, serif;
+  --font-body: Montserrat, 'Segoe UI', sans-serif;
+  --font-caption: var(--font-body);
+  --type-h1: clamp(2rem, 4vw, 3rem);
+  --type-h2: clamp(1.75rem, 3vw, 2.5rem);
+  --type-h3: 1.625rem;
+  --type-h4: 1.375rem;
+  --type-h5: 1.125rem;
+  --type-h6: 1rem;
+  --type-body: 1rem;
+  --type-small: .8125rem;
+  --type-label: .75rem;
+  --line-body: 1.6;
+  --line-title: 1.15;
+  --tracking-label: .075em;
+  --space-1: 8px;
+  --space-2: 16px;
+  --space-3: 24px;
+  --space-4: 32px;
+  --space-5: 40px;
+  --space-6: 48px;
+  --space-8: 64px;
+  --radius-small: 4px;
+  --radius-medium: 8px;
+  --radius-large: 12px;
+  --border-width: 1px;
+  --focus-width: 3px;
+  --shadow-surface: 0 8px 32px rgb(43 43 46 / 5%);
+  --shadow-dialog: 0 24px 64px rgb(43 43 46 / 18%);
+  --layout-max: 1268px;
+  --header-height: 72px;
+  --nav-height: 56px;
+  --symbol-height: 48px;
+  --header-layer: 40;
+  --menu-layer: 45;
+  --motion-duration: 150ms;
+  /* 730/1254 is the width of the exact symbol crop inside the full image. */
+  --brand-image-fraction: 46.2%;
+  --wine: var(--color-primary);
+  --wine-dark: var(--color-primary-dark);
+  --blue: var(--color-navy);
+  --paper: var(--color-paper);
+  --line: var(--color-border);
+  --ink: var(--color-ink);
+  --muted: var(--color-muted);
+}
+@media (max-width: 767px) { :root { --header-height: 56px; --symbol-height: 40px; } }
+@media (prefers-reduced-motion: reduce) { :root { --motion-duration: 0ms; } }

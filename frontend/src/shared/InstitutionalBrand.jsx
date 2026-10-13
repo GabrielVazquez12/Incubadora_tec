@@ -1,3 +1,3 @@
 export default function InstitutionalBrand() {
-  return <div className="institutional-brand"><img className="institutional-its" src="/brand/its.png" alt="Instituto Tecnológico de Saltillo" width="54" height="62" /><span className="institutional-brand-title">Incubadora ITS<small>Emprendimiento e innovación</small></span><span className="institutional-brand-divider" aria-hidden="true" /><img className="institutional-tecnm" src="/brand/tecnm.png" alt="Tecnológico Nacional de México" width="126" height="62" /></div>;
+  return <span className="institutional-brand"><img className="brand-symbol" src="/brand/enlaces-monograma-48.png" srcSet="/brand/enlaces-monograma-96.png 2x, /brand/enlaces-monograma-144.png 3x" alt="" width="77" height="48" decoding="async" /><span className="institutional-brand-title">ENLACES<small>INSTITUCIONALES ITS</small></span></span>;
 }

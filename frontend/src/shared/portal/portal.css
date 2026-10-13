@@ -1,4 +1,4 @@
-:root { --wine: #6e1e39; --wine-dark: #3f0f21; --blue: #1f4e79; --paper: #f6f5f7; --line: #e5e1e7; --ink: #292630; --muted: #696471; }
+:root { /* Shared theme tokens are defined in shared/design/tokens.css. */ }
 .portal-app { min-height: 100vh; background: var(--paper); color: var(--ink); font-family: Calibri, 'Segoe UI', sans-serif; font-size: 16px; line-height: 1.5; }
 .portal-app *, .not-found * { box-sizing: border-box; }
 .portal-app h1, .portal-app h2, .portal-app h3, .not-found h1 { font-family: Cambria, Georgia, serif; color: var(--wine-dark); }

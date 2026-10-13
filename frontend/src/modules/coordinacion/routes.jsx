@@ -1,3 +1,4 @@
+import { Dashboard } from './Dashboard'; 
 import { EventManagement, EventForm } from './EventManagement';
 import { Users, Roles } from './Users';
 import { Reports } from './Reports';
@@ -7,6 +8,7 @@ import { Application } from '../../shared/applications/Application';
 import { Tutoring } from '../../shared/tutoring/Tutoring';
 
 export const coordinationRoutes = [
+  ['metricas', <Dashboard />], // <-- Nueva ruta exclusiva para tus gráficas
   ['eventos', <EventManagement />],
   ['usuarios', <Users />],
   ['roles', <Roles />],

@@ -42,7 +42,7 @@ for (const path of ['/vista-previa', '/vista-previa/emprendedor/inicio', '/vista
 }
 
 const pages = [
-  ['emprendedor/inicio', 'Hola, Diego'],
+  ['emprendedor/inicio', 'Bienvenido(a), Diego Ramírez'],
   ['emprendedor/boletin', 'Actualidad de la incubadora'],
   ['coordinador/boletin', 'Actualidad de la incubadora'],
   ['externo/boletin', 'Actualidad de la incubadora'],
@@ -58,7 +58,7 @@ const pages = [
   ['emprendedor/tutorias', 'Un espacio para avanzar juntos'],
   ['emprendedor/tutorias/agenda', 'Próximas sesiones'],
   ['emprendedor/tutorias/historial', 'Historial de tutorías'],
-  ['coordinador/inicio', 'Panel de coordinación'],
+  ['coordinador/inicio', 'Bienvenido(a), Ana Martínez'],
   ['coordinador/usuarios', 'Usuarios registrados'],
   ['coordinador/roles', 'Roles y permisos'],
   ['coordinador/eventos', 'Gestión de eventos'],
@@ -97,6 +97,31 @@ for (const [path, expected] of pages) {
   for (const match of html.matchAll(/href="(\/vista-previa\/[^"#]*)"/g)) links.add(match[1].replaceAll('&amp;', '&'));
 }
 for (const link of links) assert.ok(!render(link).includes('Página no encontrada'), `Broken preview link: ${link}`);
+
+const legacyMenus = {
+  emprendedor: ['inicio', 'boletin', 'proyectos', 'avances', 'eventos', 'tutorias', 'pagos', 'inscripciones'],
+  coordinador: ['inicio', 'boletin', 'usuarios', 'roles', 'eventos', 'publicaciones', 'pagos', 'reportes', 'tutorias', 'seguimiento', 'solicitudes', 'registros'],
+};
+for (const [actor, paths] of Object.entries(legacyMenus)) {
+  const html = render(`/vista-previa/${actor}/inicio`);
+  const main = html.match(/<main[^>]*id="contenido"[^>]*>([\s\S]*?)<\/main>/)[1];
+  assert.ok(main.includes('portal-welcome'));
+  assert.ok(main.includes('/brand/enlaces-institucionales.jpeg'));
+  assert.ok(!main.includes('module-grid'));
+  assert.ok(!main.includes('stats-grid'));
+  assert.ok(!main.includes('<a '), `${actor}: no module links inside welcome`);
+  assert.ok(!html.includes('Secciones institucionales'), 'Portal footer must not become module navigation');
+  const nav = html.match(/<nav class="desktop-navigation"[^>]*>([\s\S]*?)<\/nav>/)[1];
+  const destinations = [...nav.matchAll(/href="([^"]+)"/g)].map(match => match[1]);
+  assert.deepEqual(destinations.slice(0, paths.length), paths.map(path => `/vista-previa/${actor}/${path}`));
+  assert.ok(destinations.at(-1).includes('/vista-previa/innovatecnm/inicio'));
+  assert.ok(nav.includes('aria-current="page"'));
+  assert.ok(!nav.includes('/brand/its.png') && !nav.includes('/brand/tecnm.png'));
+  if (actor === 'emprendedor') assert.ok(!nav.includes('/encuestas') && !nav.includes('/catalogo') && !nav.includes('/usuarios'));
+}
+assert.ok(render('/vista-previa/externo/inicio').includes('module-grid'), 'External home remains unchanged');
+for (const path of ['/incubadora', '/innovatec', '/vinculacion', '/eventos', '/contacto', '/encuestas', '/aviso-de-privacidad']) assert.ok(!render(path).includes('Página no encontrada'));
+console.log('PASS: 14 legacy module destinations, menu order and roles, welcome without cards or module links, public routes and full official brand.');
 
 const external = render('/vista-previa/externo/inicio');
 assert.ok(!external.includes('href="/vista-previa/externo/proyectos'), 'External user must not have project navigation');

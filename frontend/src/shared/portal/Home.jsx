@@ -1,23 +1,24 @@
 import { Link } from 'react-router-dom';
 import Newsletter from '../../modules/publico/Newsletter.jsx';
+import BrandImage from '../BrandImage.jsx';
 import { closed } from '../events/helpers.js';
 import { hasStarted } from './schedule.js';
 import { usePortal } from './PortalContext.jsx';
 import { usePortalRoute } from './PortalLayout.jsx';
-import { demoPeople, dateLabel } from './data.js';
+import { demoPeople, dateLabel, roleNames } from './data.js';
 import { Badge, Heading, Panel, Progress, Stats } from './ui.jsx';
 
 export default function Home() {
   const { data, user, preview } = usePortal();
   const { role, base, userId } = usePortalRoute();
+  if (role === 'admin' || role === 'estudiante') {
+    const name = preview ? demoPeople[role] : user?.nombre || '';
+    return <section className="portal-welcome" aria-labelledby="welcome-title"><h1 id="welcome-title">{`Bienvenido(a), ${name}`}</h1><p className="welcome-role">{roleNames[role]}</p><BrandImage priority maxWidth={420} /><p className="brand-motto">Conectando ideas, generando oportunidades</p></section>;
+  }
   const projects = data.projects.filter(p => role === 'admin' || p.owner === userId || data.members?.some(m => m.proyecto_id === p.id && m.usuario_id === userId));
   const project = projects[0];
-  const modules = role === 'admin' ? [
-    ['publicaciones', '10', 'Boletín', 'Noticias, avisos y convocatorias del sitio.'], ['usuarios', '01', 'Usuarios', 'Alta, edición y baja de cuentas.'], ['roles', '02', 'Roles', 'Consulta los permisos por tipo de usuario.'], ['eventos', '03', 'Eventos', 'Actividades, tipos e inscripciones.'], ['reportes', '04', 'Reportes', 'Proyectos, emprendedores y estadísticas.'], ['tutorias', '05', 'Tutorías', 'Organiza tu agenda y disponibilidad.'], ['seguimiento', '06', 'Seguimiento', 'Avances y tareas de cada proyecto.'], ['pagos', '07', 'Pagos', 'Cobros, movimientos y comprobantes.'], ['solicitudes', '08', 'Solicitudes', 'Revisa las propuestas de ingreso.'], ['registros', '09', 'Registros', 'Revisa formularios y anexos antes de aprobar el proyecto.'],
-  ] : role === 'externo' ? [
+  const modules = [
     ['eventos', '01', 'Eventos', 'Conoce e inscríbete a las actividades de la incubadora.'], ['solicitud', '02', 'Solicitar ingreso', 'Cuéntanos tu idea y comienza tu camino como emprendedor.'], ['inscripciones', '03', 'Mis inscripciones', 'Consulta tus actividades y el estado de tu registro.'], ['pagos', '04', 'Mis pagos', 'Revisa tus pagos y comprobantes.'],
-  ] : [
-    ['proyectos', '01', 'Mis proyectos', 'Consulta y da seguimiento a tus ideas en incubación.'], ['avances', '02', 'Mis avances', 'Registra hitos, notas y tareas de tu proyecto.'], ['eventos', '03', 'Eventos', 'Participa en talleres, ferias y capacitaciones.'], ['tutorias', '04', 'Tutorías', 'Agenda una sesión con tu coordinador.'],
   ];
   return <><Heading eyebrow={role === 'admin' ? 'COORDINACIÓN / INICIO' : 'TU ESPACIO DE EMPRENDIMIENTO'} title={role === 'admin' ? 'Panel de coordinación' : `Hola, ${(preview ? demoPeople[role] : user?.nombre || '').split(' ')[0]}`} description={role === 'admin' ? 'Una vista de tu comunidad y las herramientas para acompañarla.' : 'Cada paso acerca tu idea a convertirse en una empresa.'} />
     {role !== 'externo' && <Stats items={role === 'admin' ? [['Proyectos', projects.length], ['Emprendedores', data.users.filter(u => u.rol === 'estudiante').length], ['Eventos activos', data.events.filter(e => !closed(e)).length], ['Progreso promedio', `${Math.round(projects.reduce((sum, p) => sum + p.progreso, 0) / (projects.length || 1))}%`]] : [['Progreso del proyecto', `${project?.progreso || 0}%`], ['Tareas pendientes', data.tasks.filter(t => projects.some(p => p.id === t.project) && t.estatus === 'Pendiente').length], ['Tutorías próximas', data.appointments.filter(a => { const slot = data.slots.find(s => s.id === a.slot); return a.user === userId && a.estatus === 'Confirmada' && slot && !hasStarted(slot.fecha, slot.fin); }).length], ['Eventos inscritos', data.registrations.filter(r => r.user === userId && r.estatus === 'Confirmada').length]]} />}

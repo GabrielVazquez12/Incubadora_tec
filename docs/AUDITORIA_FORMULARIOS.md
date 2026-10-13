@@ -93,6 +93,8 @@ Resultados finales y datos del despliegue se registran en `docs/VERIFICACION_AUD
 
 ## Problemas pendientes y límites
 
+- El escaneo ECR de la primera imagen encontró dos avisos críticos en curl y siete altos en paquetes del sistema. Curl solo descarga el certificado durante la construcción; se retira junto con sus dependencias no utilizadas antes de publicar la imagen final. Los resultados del nuevo escaneo se registran en `VERIFICACION_AUDITORIA.md`. Los avisos restantes de la distribución se conservan explícitamente como seguimiento, sin afirmar que la imagen está libre de vulnerabilidades.
+
 - `npm audit --omit=dev` informa dos avisos moderados de React Router 6. La corrección propuesta requiere Router 7; no se realizó una actualización mayor ajena a los formularios. El portal utiliza rutas internas controladas y no hidrata errores SSR. Debe planificarse esa actualización y revisar también los avisos de herramientas de desarrollo.
 - El contador de login es por proceso; debe compartirse entre réplicas antes de ampliar el servicio. La configuración actual de ECS mantiene una tarea.
 - El almacenamiento del JWT en localStorage y la duración existente se conservan; cambiar a cookies requiere un trabajo separado de contrato/CSRF. Las respuestas sensibles están marcadas no-store.

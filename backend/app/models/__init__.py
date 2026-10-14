@@ -6,3 +6,4 @@ from app.models.seguimiento import IntegranteProyecto, Documento, HistorialEstat
 from app.models.portal import Avance, Tarea, TipoEvento, Evento, Inscripcion, Pago, Horario, Tutoria, Solicitud, Innovacion  # noqa: F401
 
 from app.models.portal import RegistroInicial
+from app.models.innovatec import ConvocatoriaInnovaTec, ArchivoConvocatoriaInnovaTec, EquipoInnovaTec, IntegranteInnovaTec, DocumentoInnovaTec, PlaticaInnovaTec

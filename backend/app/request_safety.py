@@ -13,7 +13,7 @@ class BodyLimitMiddleware:
         limit = 64 * 1024
         if "/initialRegistrations/" in path:
             limit = 30 * 1024 * 1024  # 20 MB of base64 annexes plus registration text.
-        elif "/projects/" in path or "/admin/media/" in path:
+        elif "/projects/" in path or "/admin/media/" in path or ("/innovatec/" in path and path.endswith(("/documentos", "/archivos"))):
             limit = 9 * 1024 * 1024
         for key, value in scope.get("headers", []):
             if key == b"content-type" and value.split(b";", 1)[0].strip().lower() == b"application/x-www-form-urlencoded":

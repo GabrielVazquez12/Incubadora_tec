@@ -126,7 +126,9 @@ def state(db: Session = Depends(get_db), user: Usuario = Depends(get_current_use
     for slot in result["slots"]:
         slot["reservado"] = UUID(slot["id"]) in booked
     result["initialRegistrations"] = [{**r, "archivos": {key: {"name": item["name"]} for key, item in r["archivos"].items()}} for r in result["initialRegistrations"]]
-    result["innovation"] = [{**r["datos"], "id": r["id"], "user": r["user"]} for r in result["innovation"]]
+    from app.models import EquipoInnovaTec
+    team_links = {p: (t, v) for p, t, v in db.execute(select(EquipoInnovaTec.innovacion_id, EquipoInnovaTec.id, EquipoInnovaTec.version).where(EquipoInnovaTec.innovacion_id.in_([UUID(r['id']) for r in result['innovation']])))}
+    result["innovation"] = [{**r["datos"], "id": r["id"], "user": r["user"], "equipo_id": str(team_links[UUID(r['id'])][0]) if UUID(r['id']) in team_links else None, "equipo_version": team_links[UUID(r['id'])][1] if UUID(r['id']) in team_links else None} for r in result["innovation"]]
     return {"data": result, "user": serialized(user), "paymentsMode": "prueba" if settings.demo_payments_enabled else "deshabilitado"}
 
 

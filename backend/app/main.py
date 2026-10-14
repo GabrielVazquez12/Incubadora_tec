@@ -9,6 +9,7 @@ from app.modules.compartido import routes as portal
 from app.modules.compartido import documents
 from app.modules.compartido import newsletter
 from app.modules.compartido import editorial_media
+from app.modules.innovacion import routes as innovatec
 from botocore.exceptions import BotoCoreError, ClientError
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
@@ -38,6 +39,8 @@ app.include_router(students.router)
 app.include_router(documents.router)
 app.include_router(newsletter.router)
 app.include_router(editorial_media.router)
+app.include_router(innovatec.router)
+app.include_router(innovatec.public)
 
 
 @app.exception_handler(RequestValidationError)

@@ -59,6 +59,28 @@ async function browser() {
   }
   return {
     evaluate, wait,
+    async viewport(width, height, deviceScaleFactor = 1) {
+      await call('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor, mobile: false });
+    },
+    async press(key, modifiers = 0) {
+      const codes = { Tab: 9, Enter: 13, Escape: 27, ArrowDown: 40, ArrowUp: 38 };
+      if (!codes[key]) throw new Error('Tecla no admitida por las pruebas de navegación.');
+      const event = { key, code: key, windowsVirtualKeyCode: codes[key], nativeVirtualKeyCode: codes[key], modifiers };
+      await call('Input.dispatchKeyEvent', { ...event, type: 'keyDown', ...(key === 'Enter' ? { text: '\r', unmodifiedText: '\r' } : {}) });
+      await call('Input.dispatchKeyEvent', { ...event, type: 'keyUp' });
+    },
+    async screenshot(destination, fullPage = false) {
+      let clip;
+      if (fullPage) {
+        await evaluate('window.scrollTo(0, document.documentElement.scrollHeight)');
+        await wait('Array.from(document.images).every(image => image.complete && image.naturalWidth > 0)');
+        await evaluate('window.scrollTo(0,0)');
+        const metrics = await call('Page.getLayoutMetrics');
+        clip = { ...metrics.cssContentSize, scale: 1 };
+      }
+      const shot = await call('Page.captureScreenshot', { format: 'png', captureBeyondViewport: fullPage, ...(clip ? { clip } : {}) });
+      await fs.writeFile(destination, Buffer.from(shot.data, 'base64'));
+    },
     async fill(selector, value) {
       await evaluate(`(() => { const input = document.querySelector(${JSON.stringify(selector)}); input.focus(); input.select(); })()`);
       await call("Input.insertText", { text: value });
@@ -66,7 +88,15 @@ async function browser() {
     errors: () => runtimeErrors,
     async navigate(url) {
       runtimeErrors = [];
-      await call("Page.navigate", { url });
+      const navigation = await call("Page.navigate", { url });
+      if (navigation.errorText) throw new Error(navigation.errorText);
+      if (navigation.loaderId) {
+        for (let attempt = 0; attempt < 100; attempt++) {
+          const tree = await call('Page.getFrameTree');
+          if (tree.frameTree.frame.loaderId === navigation.loaderId) break;
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      }
       await wait(`location.href === ${JSON.stringify(url)} && document.readyState === 'complete'`);
     },
     async close() {

@@ -43,8 +43,8 @@ Actualmente las coordinadoras de la incubadora gestionan todo de forma manual: r
 | Generación de Excel | pandas / openpyxl |
 | Generación de PDF | WeasyPrint / ReportLab |
 | Pagos | Stripe / Mercado Pago (sandbox) — Quentli como opción institucional a futuro |
-| Hosting backend | AWS App Runner |
-| Hosting frontend | S3 + CloudFront / Amplify |
+| Hosting backend | Amazon ECS Express Gateway Service (Fargate, HTTPS) |
+| Hosting frontend | Compilación Vite servida por el mismo servicio ECS; API bajo `/api` |
 
 > Ver `docs/stack-tecnologico.md` para el detalle de alternativas consideradas y justificación de cada decisión.
 

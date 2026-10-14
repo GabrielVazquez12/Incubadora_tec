@@ -11,7 +11,7 @@ from starlette.middleware.gzip import GZipMiddleware
 
 from app.database import engine
 from app.main import app as api
-from app.seo import pages, metadata, render_index, known_route, sitemap
+from app.seo import pages, metadata, render_index, known_route, sitemap, public_origin
 
 # Minimal Linux images may omit the system MIME database for WebP.
 mimetypes.add_type("image/webp", ".webp")
@@ -26,7 +26,7 @@ class PortalFiles(StaticFiles):
                 raise
             route = '/' + path.lstrip('/')
             index = (Path(self.directory) / 'index.html').read_text(encoding='utf-8')
-            return HTMLResponse(render_index(index, route, str(Request(scope).base_url)), status_code=403 if route == '/403' else 200 if known_route(route) else 404,
+            return HTMLResponse(render_index(index, route, public_origin(Request(scope))), status_code=403 if route == '/403' else 200 if known_route(route) else 404,
                                 headers={'Cache-Control': 'no-cache', 'X-Robots-Tag': metadata(route)['robots']})
 
 
@@ -49,12 +49,12 @@ async def web_headers(request, call_next):
 
 @app.get('/robots.txt', response_class=PlainTextResponse)
 def robots(request: Request):
-    return 'User-agent: *\nAllow: /\n' + ''.join(f'Disallow: /{path}/\n' for path in ('api', 'coordinador', 'emprendedor', 'externo', 'asesor', 'innovatecnm', 'vista-previa')) + f'Sitemap: {str(request.base_url).rstrip("/")}/sitemap.xml\n'
+    return 'User-agent: *\nAllow: /\n' + ''.join(f'Disallow: /{path}/\n' for path in ('api', 'coordinador', 'emprendedor', 'externo', 'asesor', 'innovatecnm', 'vista-previa')) + f'Sitemap: {public_origin(request).rstrip("/")}/sitemap.xml\n'
 
 
 @app.get('/sitemap.xml')
 def site_map(request: Request):
-    return Response(sitemap(str(request.base_url)), media_type='application/xml')
+    return Response(sitemap(public_origin(request)), media_type='application/xml')
 
 
 @app.get("/health")
@@ -69,7 +69,7 @@ def health():
 
 @app.get('/', response_class=HTMLResponse)
 def public_home(request: Request):
-    return HTMLResponse(render_index(Path('/app/static/index.html').read_text(encoding='utf-8'), '/', str(request.base_url)), headers={'Cache-Control': 'no-cache'})
+    return HTMLResponse(render_index(Path('/app/static/index.html').read_text(encoding='utf-8'), '/', public_origin(request)), headers={'Cache-Control': 'no-cache'})
 
 
 app.mount("/api", api)

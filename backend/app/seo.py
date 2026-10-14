@@ -1,9 +1,26 @@
 """Shared public route manifest; never include authenticated records in discovery."""
 from functools import lru_cache
 import json
+import os
+from ipaddress import ip_address, ip_network
 import re
 from html import escape
 from pathlib import Path
+
+
+def public_origin(request):
+    """Use the load balancer scheme only for metadata, from configured networks."""
+    origin = request.base_url
+    forwarded = request.headers.get('x-forwarded-proto')
+    if request.client and forwarded in ('http', 'https'):
+        try:
+            peer = ip_address(request.client.host)
+        except ValueError:
+            return str(origin)
+        networks = (ip_network(value.strip()) for value in os.environ.get('SEO_TRUSTED_PROXY_CIDRS', '').split(',') if value.strip())
+        if any(peer in network for network in networks):
+            origin = origin.replace(scheme=forwarded)
+    return str(origin)
 
 
 @lru_cache(maxsize=1)

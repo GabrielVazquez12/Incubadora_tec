@@ -1,4 +1,22 @@
-# Incubadora en Linea/ Sistema que integre y automatice los procesos de la incubadora de empresas e Innovatec
+# Enlaces Institucionales ITS
+
+Conectando ideas, generando oportunidades. Portal de Incubadora de Empresas, InnovaTec, Vinculación y Eventos del Instituto Tecnológico de Saltillo.
+
+## Rediseño institucional por fases
+
+La Fase A conserva las rutas, API, autenticación, roles y base de datos existentes. Coordinador y Emprendedor usan la barra de menú como navegación global y una bienvenida sin tarjetas ni resúmenes de módulos. Las entradas nuevas de gestión muestran explícitamente su configuración pendiente; las funciones de las fases B–F aún no se consideran implementadas.
+
+- [Auditoría inicial y plan](docs/AUDITORIA_ENLACES_PASO_1.md).
+- [Cambios, capturas, pruebas y guía de Fase A](docs/FASE_A_ENLACES.md).
+- Tokens únicos: `frontend/src/shared/design/tokens.css`; colores anteriores resueltos mediante aliases, sin cambiar selectores que otros módulos utilizan.
+- Marca completa: `BrandImage.jsx`, con WebP/JPEG, alt institucional y despeje proporcional. Encabezado: `InstitutionalBrand.jsx`, recorte exacto más texto HTML; 72/56 px, símbolo 48/40 px y margen compacto aprobado. No se muestran escudos separados junto a la nueva marca.
+- Fuentes autoalojadas Cormorant Garamond/Montserrat, licencias en `frontend/public/fonts`, `font-display: swap`; no paquetes nuevos.
+- Menús por perfil: orden y rutas actuales conservados; Difusión bajo Gestionar noticias, Inactivos bajo Seguimiento, Indicadores bajo Reportes; Encuestas, Catálogo y Gestión InnovaTec añadidos solo a Coordinador. El destino actual interno de InnovaTecNM se conserva hasta recibir una URL externa oficial.
+- Variables existentes: `VITE_API_URL`, `DATABASE_URL`, `JWT_SECRET`, `DOCUMENT_STORAGE` y configuración AWS documentada en `.env.example`/guías existentes. Para compilar como producción, usar `VITE_API_URL=/api`; no poner secretos en el frontend. La Fase A no añade variables ni migraciones y no modifica `.env`.
+
+Pruebas y build: `npm test --prefix frontend`, `npm run build --prefix frontend`, suite Python existente con PostgreSQL aislado. Prueba reproducible de diseño y formularios en Chrome: `./scripts/verify-design-local.ps1` (Docker y Chrome requeridos; puerto local 8091). Crea su propia red/BD y cuentas sintéticas, conserva capturas en `.local/design-test-*` y elimina los recursos temporales al terminar. `-SkipBuild` reutiliza la imagen local ya construida. No usa RDS ni datos de producción. Lint/formatter/typecheck no están configurados; no se declaran aprobados.
+
+Las instrucciones originales de instalación y módulos se conservan a continuación.
 
 
 > Plataforma para digitalizar y sistematizar los procesos de la incubadora del Tecnológico de Saltillo, sustituyendo el manejo manual actual (correos, PDFs, impresión) por un sistema centralizado con roles.
@@ -25,8 +43,8 @@ Actualmente las coordinadoras de la incubadora gestionan todo de forma manual: r
 | Generación de Excel | pandas / openpyxl |
 | Generación de PDF | WeasyPrint / ReportLab |
 | Pagos | Stripe / Mercado Pago (sandbox) — Quentli como opción institucional a futuro |
-| Hosting backend | AWS App Runner |
-| Hosting frontend | S3 + CloudFront / Amplify |
+| Hosting backend | Amazon ECS Express Gateway Service (Fargate, HTTPS) |
+| Hosting frontend | Compilación Vite servida por el mismo servicio ECS; API bajo `/api` |
 
 > Ver `docs/stack-tecnologico.md` para el detalle de alternativas consideradas y justificación de cada decisión.
 

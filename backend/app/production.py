@@ -1,5 +1,6 @@
 """Serve the built portal and API from the same origin in production."""
 from pathlib import Path
+import mimetypes
 
 from fastapi import FastAPI
 from fastapi.responses import FileResponse, JSONResponse
@@ -9,6 +10,9 @@ from starlette.staticfiles import StaticFiles
 
 from app.database import engine
 from app.main import app as api
+
+# Minimal Linux images may omit the system MIME database for WebP.
+mimetypes.add_type("image/webp", ".webp")
 
 
 class PortalFiles(StaticFiles):

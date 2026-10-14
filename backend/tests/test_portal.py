@@ -316,6 +316,98 @@ class PortalTest(unittest.TestCase):
         self.assertEqual(reused['evento_id'], existing_event_id)
         self.request('PUT', f'/portal/innovatec/platicas/{uuid4()}', {**talk, 'evento_id': existing_event_id}, coordinator, status=409)
 
+    def test_incubadora_diagnostic_attention_states_and_indicators(self):
+        from app.modules.compartido.services import today
+        day = today()
+        owner = self.create_user('incubation_owner')
+        stranger = self.create_user('incubation_stranger')
+        token = self.login('incubation_owner@example.com')
+        other = self.login('incubation_stranger@example.com')
+        coordinator = self.login('admin@example.com')
+        project_id = str(uuid4())
+        project = {'nombre': 'Proyecto de diagnóstico temporal', 'descripcion': 'Validar un servicio temporal.', 'producto_servicio': 'Servicio temporal', 'fecha': day.isoformat()}
+        registration_id = self.initial_form(token, project)
+        self.request('PUT', f'/portal/projects/{project_id}', {**project, 'registro_id': registration_id}, token)
+        root = f'/portal/incubadora/proyectos/{project_id}'
+        self.request('GET', root, token=other, status=403)
+        folder = self.request('GET', root, token=token)
+        self.assertEqual(folder['expediente']['version'], 0)
+        config = self.request('GET', '/portal/incubadora/configuracion', token=coordinator)
+        settings = {'version': config['version'], 'dias_inactividad': 15, 'aviso_privacidad': 'Aviso sintético exclusivo de pruebas automatizadas, sin validez institucional.', 'aviso_aprobado': True}
+        self.request('PUT', '/portal/incubadora/configuracion', settings, token, status=403)
+        self.request('PUT', '/portal/incubadora/configuracion', {**settings, 'aviso_aprobado': 'false'}, coordinator, status=422)
+        config = self.request('PUT', '/portal/incubadora/configuracion', settings, coordinator)
+        self.request('PUT', '/portal/incubadora/configuracion', settings, coordinator, status=409)
+        proposal = self.request('POST', '/portal/incubadora/catalogo/propuesta', {}, coordinator)
+        repeated = self.request('POST', '/portal/incubadora/catalogo/propuesta', {}, coordinator)
+        self.assertEqual(len(proposal['servicios']), 12)
+        self.assertEqual(len(repeated['hitos']), 12)
+        self.request('POST', '/portal/incubadora/catalogo/propuesta', {}, token, status=403)
+        diagnosis_id = str(uuid4())
+        diagnosis = {'version': 0, 'proyecto_id': project_id, 'telefono': '+52 844 1234567', 'tipo_usuario': 'alumno', 'carrera': 'Carrera temporal', 'semestre': 4, 'perfil': 'idea de negocio', 'etapa': 'antes de vender o formalizar', 'descripcion': 'Idea temporal con texto Unicode: café y piñón.', 'estado_actual': 'idea', 'necesidades': ['cliente / mercado / validación'], 'canal_llegada': 'InnovaTec', 'proyecto_pausado': False, 'frecuencia': 'cada 15 días', 'modalidad': 'mixta', 'acepto_privacidad': True, 'version_aviso': config['version']}
+        self.request('PUT', f'/portal/incubadora/diagnosticos/{diagnosis_id}', {**diagnosis, 'semestre': '4'}, token, status=422)
+        self.request('PUT', f'/portal/incubadora/diagnosticos/{diagnosis_id}', {**diagnosis, 'proyecto_pausado': 'false'}, token, status=422)
+        self.request('PUT', f'/portal/incubadora/diagnosticos/{diagnosis_id}', {**diagnosis, 'estado': 'formalizado'}, token, status=422)
+        self.request('PUT', f'/portal/incubadora/diagnosticos/{diagnosis_id}', diagnosis, other, status=403)
+        saved = self.request('PUT', f'/portal/incubadora/diagnosticos/{diagnosis_id}', diagnosis, token)
+        self.assertNotIn('texto', saved['consentimiento'])
+        self.request('PUT', f'/portal/incubadora/diagnosticos/{uuid4()}', diagnosis, token, status=409)
+        self.request('GET', f'/portal/incubadora/diagnosticos/{diagnosis_id}/registro.pdf', token=other, status=403)
+        pdf = self.request('GET', f'/portal/incubadora/diagnosticos/{diagnosis_id}/registro.pdf', token=token, binary=True)
+        self.assertTrue(pdf.startswith(b'%PDF-'))
+        folder = self.request('GET', root, token=token)
+        self.assertEqual(folder['expediente']['proxima_revision'], (day + timedelta(days=15)).isoformat())
+        version = folder['expediente']['version']
+        attention = {'version': version, 'fecha': day.isoformat(), 'tipo': 'seguimiento', 'servicio_id': proposal['servicios'][0]['id'], 'actividad': 'Validar necesidades del cliente', 'responsable_id': owner['id'], 'fecha_revision': (day + timedelta(days=7)).isoformat()}
+        endpoint = root + '/atenciones/' + str(uuid4())
+        self.request('POST', endpoint, attention, token, status=403)
+        for field in ('actividad', 'responsable_id', 'fecha_revision'):
+            self.request('POST', endpoint, {key: value for key, value in attention.items() if key != field}, coordinator, status=422)
+        self.request('POST', endpoint, {**attention, 'actividad': '  '}, coordinator, status=422)
+        self.request('POST', endpoint, {**attention, 'fecha_revision': '2026-02-30'}, coordinator, status=422)
+        self.request('POST', endpoint, {**attention, 'responsable_id': stranger['id']}, coordinator, status=422)
+        with ThreadPoolExecutor(2) as pool:
+            attempts = list(pool.map(lambda _: self.request('POST', endpoint, attention, coordinator), range(2)))
+        self.assertEqual(attempts[0]['id'], attempts[1]['id'])
+        folder = self.request('GET', root, token=token)
+        self.assertEqual(len(folder['atenciones']), 1)
+        self.assertEqual(folder['expediente']['estado'], 'en_seguimiento')
+        self.request('PUT', root + '/estado', {'version': folder['expediente']['version'], 'estado': 'pausado', 'motivo': 'Pausa temporal', 'fecha': day.isoformat()}, coordinator, status=409)
+        hito = proposal['hitos'][0]
+        progress = {'version': 0, 'estado': 'cumplido', 'fecha': day.isoformat()}
+        self.request('PUT', root + f"/hitos/{hito['id']}", {**progress, 'fecha': None}, token, status=422)
+        self.request('PUT', root + f"/hitos/{hito['id']}", progress, other, status=403)
+        self.request('PUT', root + f"/hitos/{hito['id']}", progress, token)
+        folder = self.request('GET', root, token=token)
+        closing = {**attention, 'version': folder['expediente']['version'], 'tipo': 'cierre', 'actividad': 'Conservar el expediente durante la pausa'}
+        self.request('POST', root + '/atenciones/' + str(uuid4()), closing, coordinator)
+        folder = self.request('GET', root, token=token)
+        paused = self.request('PUT', root + '/estado', {'version': folder['expediente']['version'], 'estado': 'pausado', 'motivo': 'Pausa temporal de prueba', 'fecha': day.isoformat()}, coordinator)
+        inactives = self.request('GET', '/portal/incubadora/seguimientos?vista=inactivos', token=coordinator)
+        self.assertTrue(any(row['proyecto_id'] == project_id for row in inactives['items']))
+        self.request('POST', root + '/atenciones/' + str(uuid4()), {**attention, 'version': paused['version']}, coordinator, status=409)
+        recovered = {**attention, 'version': paused['version'], 'tipo': 'recuperacion', 'actividad': 'Retomar validación del cliente'}
+        self.request('POST', root + '/atenciones/' + str(uuid4()), recovered, coordinator)
+        folder = self.request('GET', root, token=token)
+        self.assertEqual(folder['expediente']['estado'], 'activo')
+        self.request('GET', '/portal/incubadora/indicadores', token=token, status=403)
+        stats = self.request('GET', '/portal/incubadora/indicadores?perfil=idea%20de%20negocio', token=coordinator)
+        self.assertEqual(stats['proyectos'], 1)
+        self.assertEqual(stats['diagnosticos'], 1)
+        self.assertEqual(stats['actividades_completadas'], 1)
+        self.request('GET', '/portal/incubadora/indicadores?desde=2026-02-02&hasta=2026-01-01', token=coordinator, status=422)
+        public_id = str(uuid4())
+        registration = {**diagnosis, 'proyecto_id': None, 'nombre': 'Registro simplificado temporal', 'producto_servicio': 'Servicio de prueba'}
+        self.request('POST', f'/portal/incubadora/registro/{public_id}', registration, coordinator, status=403)
+        with ThreadPoolExecutor(2) as pool:
+            results = list(pool.map(lambda _: self.request('POST', f'/portal/incubadora/registro/{public_id}', registration, token, status=201), range(2)))
+        self.assertEqual(results[0]['id'], results[1]['id'])
+        self.assertEqual(results[0]['proyecto_id'], public_id)
+        self.assertEqual(self.request('GET', f'/portal/incubadora/proyectos/{public_id}', token=token)['proyecto']['estatus'], 'En revisión')
+        self.request('POST', root + '/atenciones/' + str(uuid4()), {**attention, 'version': folder['expediente']['version'], 'fecha': (day - timedelta(days=20)).isoformat(), 'fecha_revision': (day - timedelta(days=5)).isoformat()}, coordinator)
+        overdue = self.request('GET', '/portal/incubadora/seguimientos?vista=vencidos', token=coordinator)
+        self.assertTrue(any(row['proyecto_id'] == project_id for row in overdue['items']))
+
     def create_user(self, alias, role="estudiante"):
         return self.request("POST", "/auth/registro", {"nombre": alias, "correo": f"{alias}@example.com", "password": "TestPass2026!", "rol": role}, status=201)
 

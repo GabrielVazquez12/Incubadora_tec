@@ -1,4 +1,4 @@
-param([int]$Port=8091,[switch]$SkipBuild,[switch]$InnovaTec,[switch]$OnlyInnovaTec)
+param([int]$Port=8091,[switch]$SkipBuild,[switch]$InnovaTec,[switch]$OnlyInnovaTec,[switch]$Incubadora)
 $ErrorActionPreference='Stop'
 $repoRoot=Split-Path -Parent $PSScriptRoot
 Set-Location $repoRoot
@@ -58,9 +58,13 @@ try {
     npm run test:browser --prefix frontend
     if($LASTEXITCODE -ne 0){throw 'Falló la regresión de formularios en Chrome.'}
   }
-  if($InnovaTec -or $OnlyInnovaTec) {
+  if($InnovaTec -or $OnlyInnovaTec -or $Incubadora) {
     node frontend/scripts/innovatec-browser.cjs
     if($LASTEXITCODE -ne 0){throw 'Falló el flujo InnovaTec en Chrome.'}
+  }
+  if($Incubadora) {
+    node frontend/scripts/incubadora-browser.cjs
+    if($LASTEXITCODE -ne 0){throw 'Falló el flujo Incubadora en Chrome.'}
   }
   Write-Host "Verificación aprobada. Capturas: $artifacts"
 } finally {

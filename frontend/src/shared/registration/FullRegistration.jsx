@@ -8,6 +8,7 @@ import { Form, Field, TextArea, Panel, Table, Badge } from '../portal/ui.jsx';
 import { uid } from '../portal/data.js';
 import { registrationDate } from './metadata';
 import { DownloadRegistration } from './DownloadRegistration';
+import { RegistrationDiagnostic } from '../../modules/incubadora/Incubation.jsx';
 
 const categories = ['Convencionales', 'Discapacitados', 'Indígenas', 'Mujeres', 'Hombres', 'Total'];
 const keys = ['convencionales', 'discapacitados', 'indigenas', 'mujeres', 'hombres', 'total'];
@@ -115,7 +116,7 @@ export function FullRegistration({ registration, person, onReady, administrative
     notify(administrative ? 'Revisión guardada.' : finish ? 'Registro enviado. Coordinación revisará tus datos y anexos.' : 'Borrador guardado. Puedes continuar después.');
     if (!administrative) onReady?.(null);
   }
-  return <Form onSubmit={save} className="form-stack" data-unsaved={dirty || reading ? 'true' : undefined}>
+  return <><Form onSubmit={save} className="form-stack" data-unsaved={dirty || reading ? 'true' : undefined}>
     <Panel title="MODELO DE INCUBACIÓN DE EMPRESAS DEL SNEST">
       <p>PROCESO DE PRE-INCUBACIÓN · PROCEDIMIENTO DE CONTACTO INICIAL</p>
       <h2>FORMATO DE REGISTRO</h2><p>Código: {spec.code} · Revisión: {spec.revision} · Fecha de emisión: {emissionDate.split('-').reverse().join('/')}</p>
@@ -160,5 +161,5 @@ export function FullRegistration({ registration, person, onReady, administrative
     {error && <p className="error" role="alert">{error}</p>}
     {!readOnly && <div className="form-actions">{administrative ? <button className="button" disabled={busy}>Guardar revisión</button> : <><button className="button secondary" value="Borrador" formNoValidate disabled={busy || reading}>Guardar borrador</button><button className="button" value="Pendiente" disabled={busy || reading}>Enviar a revisión</button></>}</div>}
     {complete && !administrative && <p className="info-box">Registro enviado a revisión.</p>}
-  </Form>;
+  </Form><RegistrationDiagnostic registrationId={registration?.id || recordId.current} person={person} readOnly={administrative || readOnly} /></>;
 }

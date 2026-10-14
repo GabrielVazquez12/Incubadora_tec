@@ -1,0 +1,7 @@
+.incubation-workspace, .incubation-public { min-width: 0; overflow-wrap: anywhere; }
+.incubation-workspace fieldset, .incubation-workspace .field, .incubation-workspace .form-grid > *, .incubation-workspace input, .incubation-workspace select, .incubation-workspace textarea { min-width: 0; max-width: 100%; }
+.incubation-workspace fieldset { border: 1px solid var(--color-border); padding: var(--space-3); border-radius: var(--radius-medium); }
+.incubation-links { display: flex; gap: var(--space-3); flex-wrap: wrap; margin-bottom: var(--space-4); }
+.incubation-text { white-space: pre-wrap; }
+.incubation-workspace .checkbox-label { align-items: flex-start; }
+.incubation-public article { padding-block: var(--space-3); border-bottom: 1px solid var(--color-border); }

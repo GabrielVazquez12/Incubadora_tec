@@ -9,6 +9,8 @@ import uuid
 
 from alembic.autogenerate import compare_metadata
 from alembic.migration import MigrationContext
+from alembic.config import Config
+from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import IntegrityError
@@ -48,7 +50,7 @@ class MigracionesTest(unittest.TestCase):
                 with self.assertRaises(subprocess.CalledProcessError):
                     migrate('downgrade', '3a608b5c8533')
                 self.assertEqual(session.scalar(text('SELECT count(*) FROM convocatorias_innovatec')), 1)
-                self.assertEqual(session.scalar(text('SELECT version_num FROM alembic_version')), 'bc36a33dcdcb')
+                self.assertEqual(session.scalar(text('SELECT version_num FROM alembic_version')), ScriptDirectory.from_config(Config('alembic.ini')).get_current_head())
                 # Only this synthetic record is removed to test the empty-table rollback below.
                 session.delete(call)
                 session.commit()

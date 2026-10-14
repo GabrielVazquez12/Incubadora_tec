@@ -18,6 +18,7 @@ import PublicInnova from './modules/innovatec/PublicInnova.jsx';
 import CallAdmin from './modules/innovatec/CallAdmin.jsx';
 import { Teams, TeamDetail } from './modules/innovatec/Teams.jsx';
 import { Talks, Diplomas } from './modules/innovatec/Talks.jsx';
+import { PublicIncubation, Dossier, Followups, Indicators, CatalogAdmin } from './modules/incubadora/Incubation.jsx';
 import { usePortal } from './shared/portal/PortalContext.jsx';
 import { Skeleton } from './shared/portal/ui.jsx';
 import { rolePaths } from './shared/portal/data.js';
@@ -38,6 +39,14 @@ function InnovaAlias({ section = 'equipos' }) {
   return <Navigate replace to={`${path}${id ? `/${id}` : ''}`} />;
 }
 
+function IncubationAlias({ section = 'proyectos' }) {
+  const { user } = usePortal(), { id } = useParams();
+  if (!user) return <Skeleton />;
+  const root = user.rol === 'admin' ? '/coordinador' : '/emprendedor';
+  const path = section === 'proyectos' ? `${user.rol === 'admin' ? 'seguimiento' : 'proyectos'}${id ? `/${id}` : ''}` : section === 'indicadores' ? 'reportes/indicadores' : `seguimiento/${section === 'inactivos' ? 'inactivos' : 'semana'}`;
+  return <Navigate replace to={`${root}/${path}`} />;
+}
+
 function portalRoutes(role, preview) {
   const base = `${preview ? '/vista-previa' : ''}/${rolePaths[role]}`;
   const layout = <PortalLayout role={role} preview={preview} />;
@@ -56,10 +65,13 @@ function portalRoutes(role, preview) {
     {role === 'admin' && <Route path="innovatec/platicas" element={<Talks />} />}
     {role === 'admin' && <Route path="innovatec/diplomas" element={<Diplomas />} />}
     {role === 'admin' && <Route path="innovatec/seguimiento" element={<Teams seguimiento />} />}
+    {role === 'admin' && <Route path="catalogo" element={<CatalogAdmin />} />}
+    {role === 'admin' && <Route path="catalogo/hitos" element={<CatalogAdmin hitos />} />}
+    {role === 'admin' && <Route path="reportes/indicadores" element={<Indicators />} />}
+    {role === 'admin' && ['semana', 'vencidos', 'inactivos'].map(view => <Route key={view} path={`seguimiento/${view}`} element={<Followups view={view} />} />)}
     {role === 'admin' && [
       ['difusion', 'Difusión'], ['difusion/visitas', 'Visitas a salones'], ['difusion/plantillas', 'Plantillas de mensajes'],
-      ['reportes/indicadores', 'Indicadores'], ['seguimiento/semana', 'Seguimientos de la semana'], ['seguimiento/vencidos', 'Seguimientos vencidos'], ['seguimiento/inactivos', 'Inactivos'],
-      ['encuestas', 'Encuestas'], ['encuestas/resultados', 'Resultados de encuestas'], ['catalogo', 'Catálogo de servicios'], ['catalogo/hitos', 'Hitos comunes'],
+      ['encuestas', 'Encuestas'], ['encuestas/resultados', 'Resultados de encuestas'],
     ].map(([path, title]) => <Route key={path} path={path} element={<PendingModule title={title} />} />)}
   </Route>;
 }
@@ -69,7 +81,15 @@ export function AppRoutes({ enablePreview = false }) {
     <Route path="/" element={<Landing />} />
     <Route path="/login" element={<Login />} />
     <Route path="/registro" element={<Registro />} />
-    {['incubadora', 'vinculacion', 'eventos', 'contacto', 'encuestas'].map(section => <Route key={section} path={`/${section}`} element={<PublicPage section={section} />} />)}
+    {['vinculacion', 'eventos', 'contacto', 'encuestas'].map(section => <Route key={section} path={`/${section}`} element={<PublicPage section={section} />} />)}
+    <Route path="/incubadora" element={<PublicIncubation />} />
+    <Route path="/incubadora/registro" element={<PublicIncubation section="registro" />} />
+    <Route path="/incubadora/catalogo" element={<PublicIncubation section="catalogo" />} />
+    <Route path="/incubadora/catalogo/:id" element={<PublicIncubation section="catalogo" />} />
+    <Route path="/incubadora/proyectos" element={<RutaProtegida rolesPermitidos={['admin', 'estudiante']}><IncubationAlias /></RutaProtegida>} />
+    <Route path="/incubadora/proyectos/:id" element={<RutaProtegida rolesPermitidos={['admin', 'estudiante']}><IncubationAlias /></RutaProtegida>} />
+    <Route path="/incubadora/proyectos/:id/bitacora" element={<RutaProtegida rolesPermitidos={['admin', 'estudiante']}><IncubationAlias /></RutaProtegida>} />
+    {['seguimientos', 'inactivos', 'indicadores'].map(section => <Route key={section} path={`/incubadora/${section}`} element={<RutaProtegida rolesPermitidos={['admin']}><IncubationAlias section={section} /></RutaProtegida>} />)}
     <Route path="/innovatec" element={<PublicInnova section="proceso" />} />
     {['proceso', 'convocatoria', 'inscripcion', 'platicas'].map(section => <Route key={section} path={`/innovatec/${section}`} element={<PublicInnova section={section} />} />)}
     <Route path="/innovatec/equipos" element={<RutaProtegida rolesPermitidos={['admin', 'estudiante']}><InnovaAlias /></RutaProtegida>} />

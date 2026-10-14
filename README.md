@@ -4,7 +4,7 @@ Conectando ideas, generando oportunidades. Portal de Incubadora de Empresas, Inn
 
 ## Rediseño institucional por fases
 
-La Fase A conserva las rutas, API, autenticación, roles y base de datos existentes. Coordinador y Emprendedor usan la barra de menú como navegación global y una bienvenida sin tarjetas ni resúmenes de módulos. Las fases B, C y D extienden InnovaTec, Incubadora y encuestas; la fase E integra difusión, eventos y vinculación. Las funciones que requieren contenido institucional aprobado conservan sus pendientes explícitos. La fase F incorpora perfiles complementarios, asesoría asignada, auditoría y SEO, con verificación local completada. El despliegue conjunto sigue pendiente.
+La Fase A conserva las rutas, API, autenticación, roles y base de datos existentes. Coordinador y Emprendedor usan la barra de menú como navegación global y una bienvenida sin tarjetas ni resúmenes de módulos. Las fases B, C y D extienden InnovaTec, Incubadora y encuestas; la fase E integra difusión, eventos y vinculación. Las funciones que requieren contenido institucional aprobado conservan sus pendientes explícitos. La fase F incorpora perfiles complementarios, asesoría asignada, auditoría y SEO, con verificación local completada. Las fases B–F están desplegadas en AWS; resultados y pendientes en el [informe de publicación](docs/PUBLICACION_ENLACES_B_F.md).
 
 - [Auditoría inicial y plan](docs/AUDITORIA_ENLACES_PASO_1.md).
 - [Cambios, capturas, pruebas y guía de Fase A](docs/FASE_A_ENLACES.md).

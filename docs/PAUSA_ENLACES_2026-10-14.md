@@ -1,13 +1,13 @@
-# Fase F completada y verificada
+# Fases B–F publicadas y verificadas
 
-Perfiles complementarios, asesoría asignada, auditoría, SEO y optimización de carga implementados. Informe: `docs/FASE_F_ENLACES.md`. Operación: `docs/GUIA_ADMINISTRACION_ENLACES.md`.
+Portal: https://in-eba33374426a491eac5ff2c493e78050.ecs.us-east-1.on.aws. Estado final: CloudFormation UPDATE_COMPLETE, ECS revisión 15, rollout COMPLETED, una tarea activa y cero pendientes. Esquema real 637ddccf1603.
 
-- Backend: 44 pruebas aprobadas en 95,576 s.
-- Frontend: pruebas de 56 páginas y 78 enlaces, build y regresión completa de Chrome aprobados.
-- Lighthouse local: rendimiento móvil 93 y escritorio 100; accesibilidad, buenas prácticas y SEO 100 en ambos.
-- Artefactos finales: `.local/design-test-cff003fffc304cf5a420d2838d9fbef3`.
-- Sin commits, push, cambios AWS ni migraciones de producción en esta reanudación. Los cambios permanecen en el worktree.
-- Siguiente etapa: preparar la publicación conjunta con respaldo y comprobaciones previas; el despliegue y los datos institucionales reales siguen pendientes. Los apartados siguientes son históricos.
+- Informe vigente: `docs/PUBLICACION_ENLACES_B_F.md`; operación: `docs/GUIA_ADMINISTRACION_ENLACES.md`.
+- Código de aplicación da17bde, configuración f1ba9e1, publicados en `destino/feat/enlaces-institucionales-its`.
+- Snapshot RDS disponible y copia lógica cifrada/restaurada; ensayo conservó las 18 tablas anteriores. La restauración física RDS sigue limitada por la cuota del plan gratuito.
+- Backend final: 45 pruebas aprobadas. Aceptación HTTPS completa y 13 rutas públicas aprobadas.
+- Lighthouse producción: rendimiento móvil 80 / escritorio 100; accesibilidad, buenas prácticas y SEO 100 en ambos. Local: móvil 93. Queda optimizar el bloqueo móvil (TBT 822,5 ms).
+- Pendientes: contenidos institucionales aprobados, primer Administrador real, hallazgos heredados de imagen y ensayo físico RDS con capacidad disponible. Sin nuevas dependencias de aplicación ni cambios .env. Los apartados siguientes son históricos.
 
 ---
 

@@ -18,7 +18,7 @@ No se agregaron dependencias de aplicación. Lighthouse 13.5.0 se ejecuta como h
 
 ## Verificación final
 
-Verificación completa aprobada: 44 pruebas backend en 95,576 s; pruebas frontend con 56 páginas y 78 enlaces; build de producción y regresión completa en Chrome de las fases B–F. Se verificaron bootstrap, aislamiento del asesor, documentos privados, revocación, protección del cambio de rol, atomicidad e inmutabilidad ORM de auditoría, migraciones y SEO.
+Verificación completa aprobada: 45 pruebas backend en 136,663 s (revisión de publicación); pruebas frontend con 56 páginas y 78 enlaces; build de producción y regresión completa en Chrome de las fases B–F. Se verificaron bootstrap, aislamiento del asesor, documentos privados, revocación, protección del cambio de rol, atomicidad e inmutabilidad ORM de auditoría, migraciones y SEO.
 
 Lighthouse 13.5.0 local:
 
@@ -35,7 +35,7 @@ La entrada JavaScript pasó de aproximadamente 486 kB / 146 kB gzip a 283 kB / 9
 
 Limitación de captura: las capturas de página completa pueden mostrar vacío el pie fuera de pantalla por `content-visibility`; no equivalen a una captura del pie visible al desplazarse. Las métricas son locales y deben repetirse tras el despliegue real.
 
-No se hicieron commits, push, despliegues ni migraciones de producción en esta reanudación.
+Las fases B–F se publicaron posteriormente en GitHub y AWS, con respaldo, ensayo de restauración y migraciones aditivas. El [informe de publicación](PUBLICACION_ENLACES_B_F.md) registra el estado real y Lighthouse de producción: móvil 80, escritorio 100; las demás categorías 100. El 93 móvil de esta sección corresponde al entorno local.
 
 ## Archivos principales
 

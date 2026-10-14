@@ -1,4 +1,4 @@
-import InstitutionalBrand from '../../shared/InstitutionalBrand.jsx';
+import BrandImage from '../../shared/BrandImage.jsx';
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import api from "../../shared/api/client.js";
@@ -41,12 +41,14 @@ export default function Registro() {
 
   return (
     <div className="auth-page min-h-screen bg-appbg flex items-center justify-center px-4 font-body">
-      <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <Link to="/" aria-label="Volver al inicio"><InstitutionalBrand /></Link>
+      <div className="auth-shell">
+        <div className="auth-identity">
+          <BrandImage priority sizes="(min-width: 768px) 25vw, 46vw" />
+          <p className="brand-motto">Conectando ideas, generando oportunidades</p>
+          <Link className="auth-home" to="/">Volver al inicio</Link>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm p-8">
+        <div className="auth-card">
           <h1 className="font-display text-2xl text-guinda-dark mb-6">
             Crear cuenta
           </h1>

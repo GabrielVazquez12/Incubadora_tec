@@ -1,0 +1,54 @@
+{
+  "/": [
+    "Inicio",
+    "Emprendimiento, InnovaTec, vinculación y eventos del Instituto Tecnológico de Saltillo."
+  ],
+  "/incubadora": [
+    "Incubadora de Empresas",
+    "Registro, diagnóstico, orientación y seguimiento para ideas y negocios."
+  ],
+  "/incubadora/catalogo": [
+    "Catálogo de servicios",
+    "Consulta las etapas y servicios de la Incubadora de Empresas."
+  ],
+  "/innovatec": [
+    "InnovaTec",
+    "Conoce el proceso local y la continuidad de los proyectos de InnovaTec."
+  ],
+  "/innovatec/proceso": [
+    "Proceso InnovaTec",
+    "Consulta los once pasos del proceso local de InnovaTec."
+  ],
+  "/innovatec/convocatoria": [
+    "Convocatoria y manual",
+    "Consulta convocatorias, requisitos y manuales publicados por coordinación."
+  ],
+  "/innovatec/platicas": [
+    "Pláticas informativas",
+    "Consulta las sesiones informativas de InnovaTec para alumnos y docentes."
+  ],
+  "/eventos": [
+    "Eventos",
+    "Consulta actividades institucionales, fechas e inscripciones disponibles."
+  ],
+  "/difusion": [
+    "Difusión institucional",
+    "Una sola red, toda la información: actividades y contenidos institucionales."
+  ],
+  "/vinculacion": [
+    "Vinculación",
+    "Orientación y contacto institucional del Instituto Tecnológico de Saltillo."
+  ],
+  "/contacto": [
+    "Contacto institucional",
+    "Consulta los contactos institucionales o envía una solicitud al portal."
+  ],
+  "/encuestas": [
+    "Encuestas",
+    "Consulta las encuestas publicadas para la comunidad institucional."
+  ],
+  "/aviso-de-privacidad": [
+    "Aviso de privacidad",
+    "Consulta el aviso institucional aprobado para el tratamiento de datos personales."
+  ]
+}

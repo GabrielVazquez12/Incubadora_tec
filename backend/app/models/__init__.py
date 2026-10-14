@@ -9,3 +9,6 @@ from app.models.portal import RegistroInicial
 from app.models.innovatec import ConvocatoriaInnovaTec, ArchivoConvocatoriaInnovaTec, EquipoInnovaTec, IntegranteInnovaTec, DocumentoInnovaTec, PlaticaInnovaTec
 from app.models.incubadora import ConfiguracionIncubadora, ServicioCatalogo, HitoCatalogo, DiagnosticoIncubadora, ExpedienteIncubadora, AtencionIncubadora, ProyectoHito, CanalizacionIncubadora
 from app.models.encuestas import Encuesta, PreguntaEncuesta, RespuestaEncuesta
+from app.models.enlaces import PiezaDifusion, VisitaSalon, PlantillaMensaje, EnvioMensaje, PreguntaFrecuente, ConfiguracionEnlaces, ContactoInstitucional, FichaEvento
+
+from app.models.gobierno import PerfilAcceso, AuditoriaAcceso

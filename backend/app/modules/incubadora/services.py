@@ -64,7 +64,8 @@ def evidence(db, project_id, payload):
 def responsible(db, project, key):
     person = record(db, Usuario, key)
     member = db.get(IntegranteProyecto, (project.id, key))
-    if not admin(person) and person.id != project.usuario_id and not member:
+    from app.access import assigned
+    if not admin(person) and person.id != project.usuario_id and not member and not assigned(db, person, project.id):
         fail('Selecciona un responsable del proyecto o un coordinador.', 422)
     return person
 

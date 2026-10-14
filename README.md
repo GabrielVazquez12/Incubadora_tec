@@ -4,10 +4,12 @@ Conectando ideas, generando oportunidades. Portal de Incubadora de Empresas, Inn
 
 ## Rediseño institucional por fases
 
-La Fase A conserva las rutas, API, autenticación, roles y base de datos existentes. Coordinador y Emprendedor usan la barra de menú como navegación global y una bienvenida sin tarjetas ni resúmenes de módulos. Las entradas nuevas de gestión muestran explícitamente su configuración pendiente; las funciones de las fases B–F aún no se consideran implementadas.
+La Fase A conserva las rutas, API, autenticación, roles y base de datos existentes. Coordinador y Emprendedor usan la barra de menú como navegación global y una bienvenida sin tarjetas ni resúmenes de módulos. Las fases B, C y D extienden InnovaTec, Incubadora y encuestas; la fase E integra difusión, eventos y vinculación. Las funciones que requieren contenido institucional aprobado conservan sus pendientes explícitos. La fase F incorpora perfiles complementarios, asesoría asignada, auditoría y SEO, con verificación local completada. El despliegue conjunto sigue pendiente.
 
 - [Auditoría inicial y plan](docs/AUDITORIA_ENLACES_PASO_1.md).
 - [Cambios, capturas, pruebas y guía de Fase A](docs/FASE_A_ENLACES.md).
+- [Fase B: InnovaTec](docs/FASE_B_ENLACES.md), [Fase C: Incubadora](docs/FASE_C_ENLACES.md), [Fase D: encuestas](docs/FASE_D_ENLACES.md) y [Fase E: difusión y vinculación](docs/FASE_E_ENLACES.md).
+- [Fase F: perfiles, auditoría, SEO y resultados de verificación](docs/FASE_F_ENLACES.md). [Guía de administración](docs/GUIA_ADMINISTRACION_ENLACES.md).
 - Tokens únicos: `frontend/src/shared/design/tokens.css`; colores anteriores resueltos mediante aliases, sin cambiar selectores que otros módulos utilizan.
 - Marca completa: `BrandImage.jsx`, con WebP/JPEG, alt institucional y despeje proporcional. Encabezado: `InstitutionalBrand.jsx`, recorte exacto más texto HTML; 72/56 px, símbolo 48/40 px y margen compacto aprobado. No se muestran escudos separados junto a la nueva marca.
 - Fuentes autoalojadas Cormorant Garamond/Montserrat, licencias en `frontend/public/fonts`, `font-display: swap`; no paquetes nuevos.

@@ -1,0 +1,7 @@
+# Fase F — permisos, auditoría y calidad web
+
+1. Conservar roles técnicos, JWT y rutas; añadir perfiles complementarios revocables para asesor y administrador. Asesor limitado a expedientes asignados, sin acceso a gestión global ni cambios de estado/asignación. La administración de capacidades tendrá bootstrap explícito desde una cuenta administrativa existente y protección del último administrador.
+2. Migración aditiva de perfiles y auditoría. No cambiar enum ni datos históricos. Auditoría transaccional de escrituras autenticadas, solo actor/entidad/operación/campos, sin contraseñas, tokens, archivos ni datos personales de formularios. Rollback bloqueado si hay datos.
+3. Interfaz de capacidades/auditoría bajo Roles y acceso del asesor desde su sesión actual. Reutilizar expediente y atención existentes; no ampliar el permiso global de proyectos.
+4. Fuente compartida de metadata pública, title/description/OG por ruta, noindex privado, robots/sitemap y 403/404 accesibles. Cabeceras y caché de assets en el servidor existente. Sin framework ni dependencia de aplicación nuevos.
+5. Pruebas de privilegios/revocación/asignaciones/atomicidad/metadata, suite completa y Chrome móvil/escritorio. Medir Lighthouse con herramienta temporal, registrar versión y resultados reales; corregir problemas atribuibles al cambio. Documentar instalación, bootstrap, respaldo/rollback y pendientes institucionales antes del despliegue.

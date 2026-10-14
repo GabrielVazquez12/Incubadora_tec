@@ -1,4 +1,5 @@
 .survey-workspace { min-width: 0; overflow-wrap: anywhere; }
+.survey-workspace .table-scroll table { min-width: 40rem; }
 .survey-workspace .field, .survey-workspace fieldset, .survey-workspace input, .survey-workspace textarea, .survey-workspace select { min-width: 0; max-width: 100%; }
 .survey-workspace fieldset { border: 1px solid var(--color-border); border-radius: var(--radius-medium); padding: var(--space-2); margin-block: var(--space-1); }
 .survey-text { white-space: pre-wrap; }

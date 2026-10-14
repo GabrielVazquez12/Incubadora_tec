@@ -21,7 +21,7 @@ async function browser() {
   let runtimeErrors = [];
   const waiting = new Map();
   socket.addEventListener("close", () => {
-    for (const pending of waiting.values()) pending.reject(new Error("La sesión de pruebas del navegador se cerró."));
+    for (const pending of waiting.values()) { clearTimeout(pending.timer); pending.reject(new Error("La sesión de pruebas del navegador se cerró.")); }
     waiting.clear();
   });
   socket.addEventListener("message", event => {
@@ -34,12 +34,17 @@ async function browser() {
     const pending = waiting.get(data.id);
     if (!pending) return;
     waiting.delete(data.id);
+    clearTimeout(pending.timer);
     data.error ? pending.reject(new Error(data.error.message)) : pending.resolve(data.result);
   });
   function call(method, params = {}) {
     return new Promise((resolve, reject) => {
       const id = ++sequence;
-      waiting.set(id, { resolve, reject });
+      const timer = setTimeout(() => {
+        waiting.delete(id);
+        reject(new Error(`Chrome no respondió en 30 segundos: ${method}`));
+      }, 30000);
+      waiting.set(id, { resolve, reject, timer });
       socket.send(JSON.stringify({ id, method, params }));
     });
   }
@@ -72,7 +77,9 @@ async function browser() {
     async screenshot(destination, fullPage = false) {
       let clip;
       if (fullPage) {
+        await evaluate('(async () => { for (let y=0;y<document.documentElement.scrollHeight;y+=innerHeight) { window.scrollTo(0,y); await new Promise(requestAnimationFrame); await new Promise(requestAnimationFrame); } })()');
         await evaluate('window.scrollTo(0, document.documentElement.scrollHeight)');
+        await wait('!document.querySelector(".newsletter[aria-busy=true]")');
         await wait('Array.from(document.images).every(image => image.complete && image.naturalWidth > 0)');
         await evaluate('window.scrollTo(0,0)');
         const metrics = await call('Page.getLayoutMetrics');
@@ -82,6 +89,7 @@ async function browser() {
       await fs.writeFile(destination, Buffer.from(shot.data, 'base64'));
     },
     async fill(selector, value) {
+      await wait(`!!document.querySelector(${JSON.stringify(selector)})`);
       await evaluate(`(() => { const input = document.querySelector(${JSON.stringify(selector)}); input.focus(); input.select(); })()`);
       // Email inputs do not consistently support the selection API. Use the
       // native select-all shortcut, as a user would, before replacing text.
@@ -103,12 +111,13 @@ async function browser() {
         }
       }
       await wait(`location.href === ${JSON.stringify(url)} && document.readyState === 'complete'`);
+      await wait('document.querySelector("#root")?.childElementCount > 0 && !document.querySelector("[data-route-loading]")');
     },
     async close() {
       const done = child.exitCode !== null ? Promise.resolve() : new Promise(resolve => child.once("exit", resolve));
+      const timeout = setTimeout(() => { if (child.exitCode === null) child.kill(); }, 10000);
       await call("Browser.close").catch(() => {});
       socket.close();
-      const timeout = setTimeout(() => { if (child.exitCode === null) child.kill(); }, 10000);
       await done; clearTimeout(timeout);
       if (path.resolve(directory).startsWith(path.join(root, ".test-browser-"))) await fs.rm(directory, { recursive: true, force: true, maxRetries: 15, retryDelay: 500 });
     }

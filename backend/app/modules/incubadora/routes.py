@@ -1,3 +1,4 @@
+from app.access import advisor_project, profile
 """Additive dossier endpoints; existing registration/admission remains authoritative."""
 from datetime import date, timedelta, datetime, timezone
 from typing import Literal
@@ -223,6 +224,11 @@ def diagnostic_pdf(key: UUID, db: Session = Depends(get_db), user: Usuario = Dep
 @router.get('/proyectos/{key}')
 def dossier(key: UUID, db: Session = Depends(get_db), user: Usuario = Depends(get_current_user)):
     project = project_access(db, user, key)
+    return dossier_view(db, project, user)
+
+
+def dossier_view(db, project, user):
+    key = project.id
     folder = expediente(db, project, user)
     diagnosis = diagnostic_for(db, project)
     owner = record(db, Usuario, project.usuario_id)
@@ -236,8 +242,9 @@ def dossier(key: UUID, db: Session = Depends(get_db), user: Usuario = Depends(ge
 
 @router.post('/proyectos/{key}/atenciones/{attention_id}')
 def save_attention(key: UUID, attention_id: UUID, payload: AtencionInput, db: Session = Depends(get_db), user: Usuario = Depends(get_current_user)):
-    require_admin(user)
-    project = project_access(db, user, key)
+    project = advisor_project(db, user, key)
+    if not admin(user) and (payload.tipo not in ('diagnostico', 'asesoria', 'seguimiento') or payload.responsable_id != user.id):
+        fail('El asesor registra diagnóstico, asesoría o seguimiento a su propio cargo.', 403)
     folder = expediente(db, project, user, True)
     previous = db.get(AtencionIncubadora, attention_id)
     if previous:
@@ -301,8 +308,8 @@ def assign(key: UUID, payload: AsignacionInput, db: Session = Depends(get_db), u
     require_admin(user)
     project = project_access(db, user, key)
     advisor = record(db, Usuario, payload.asesor_id)
-    if not admin(advisor):
-        fail('Selecciona un usuario con permisos de coordinación.', 422)
+    if not admin(advisor) and profile(db, advisor) != 'asesor':
+        fail('Selecciona un coordinador o una cuenta con perfil Asesor.', 422)
     if payload.primer_contacto > today():
         fail('La fecha del primer contacto no puede ser futura.', 422)
     row = expediente(db, project, user, True)

@@ -1,3 +1,4 @@
+from app.access import identity
 import re
 from app.modules.compartido.registration_word import build_registration_word, WORD_MIME
 import base64
@@ -93,6 +94,9 @@ def state(db: Session = Depends(get_db), user: Usuario = Depends(get_current_use
         item = serialized(person)
         if not admin(user) and person.id != user.id:
             item.pop("correo", None)
+        if admin(user):
+            from app.access import profile
+            item['perfil'] = profile(db, person)
         users.append(item)
     result = {"users": users, "projects": [], "roles": ROLES,
               "eventTypes": list(db.scalars(select(TipoEvento.nombre).order_by(TipoEvento.nombre))),
@@ -129,7 +133,7 @@ def state(db: Session = Depends(get_db), user: Usuario = Depends(get_current_use
     from app.models import EquipoInnovaTec
     team_links = {p: (t, v) for p, t, v in db.execute(select(EquipoInnovaTec.innovacion_id, EquipoInnovaTec.id, EquipoInnovaTec.version).where(EquipoInnovaTec.innovacion_id.in_([UUID(r['id']) for r in result['innovation']])))}
     result["innovation"] = [{**r["datos"], "id": r["id"], "user": r["user"], "equipo_id": str(team_links[UUID(r['id'])][0]) if UUID(r['id']) in team_links else None, "equipo_version": team_links[UUID(r['id'])][1] if UUID(r['id']) in team_links else None} for r in result["innovation"]]
-    return {"data": result, "user": serialized(user), "paymentsMode": "prueba" if settings.demo_payments_enabled else "deshabilitado"}
+    return {"data": result, "user": identity(db, user), "paymentsMode": "prueba" if settings.demo_payments_enabled else "deshabilitado"}
 
 
 

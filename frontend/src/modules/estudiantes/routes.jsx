@@ -1,7 +1,10 @@
-import { ProjectForm } from './ProjectForm';
-import { Projects, ProjectDetail } from '../../shared/projects/Projects';
-import { Tutoring } from '../../shared/tutoring/Tutoring';
+import { lazyPage } from '../../shared/portal/lazyPage.jsx';
 import { participantRoutes } from '../../shared/events/routes';
+
+const ProjectForm = lazyPage(() => import('./ProjectForm'), 'ProjectForm');
+const Projects = lazyPage(() => import('../../shared/projects/Projects'), 'Projects');
+const ProjectDetail = lazyPage(() => import('../../shared/projects/Projects'), 'ProjectDetail');
+const Tutoring = lazyPage(() => import('../../shared/tutoring/Tutoring'), 'Tutoring');
 
 export const studentRoutes = [
   ...participantRoutes,

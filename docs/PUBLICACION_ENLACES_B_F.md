@@ -29,3 +29,5 @@ Las migraciones añaden las tablas B–F sin borrar datos existentes. Ante un fa
 ## Ajuste de metadata durante la aceptación
 
 La primera publicación completó CloudFormation y ECS, pero la comprobación real detectó sitemap/canónicos con http detrás del balanceador HTTPS. La versión instalada de Uvicorn acepta IPs exactas, sin CIDR. Se añadió `public_origin` limitado a metadata: confía en `X-Forwarded-Proto` solo para http/https y conexiones desde las subredes configuradas del balanceador. La plantilla documenta esas redes; no se modifican permisos ni el tratamiento de IPs de autenticación. Build aprobado y 45 pruebas backend aprobadas en 136,663 s, incluyendo fuentes no confiables, cabecera inválida y ausencia de configuración. Se prepara una segunda revisión de aplicación, sin nuevas migraciones.
+
+La comprobación de logs y EC2 detectó y corrigió una selección inicial de CIDR equivocada. Los rangos reales del balanceador son `10.42.1.0/24,10.42.2.0/24`; se verificaron sus IDs de subred mediante ELB/EC2, sin ampliar la confianza a toda la VPC. Esta corrección es únicamente de configuración y conserva la imagen de aplicación `enlaces-bf-da17bde`.

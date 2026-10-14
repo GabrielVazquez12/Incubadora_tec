@@ -218,7 +218,7 @@ Resources:
           - {Name: DEMO_PAYMENTS_ENABLED, Value: 'false'}
           - {Name: CORS_ORIGINS, Value: ''}
           # Keep these networks aligned with the foundation WebPublicSubnets.
-          - {Name: SEO_TRUSTED_PROXY_CIDRS, Value: '10.42.10.0/24,10.42.11.0/24'}
+          - {Name: SEO_TRUSTED_PROXY_CIDRS, Value: '10.42.1.0/24,10.42.2.0/24'}
         Secrets:
           - Name: DB_PASSWORD
             ValueFrom: !Sub

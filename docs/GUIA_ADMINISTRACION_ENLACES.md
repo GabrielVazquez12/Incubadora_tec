@@ -43,7 +43,15 @@ No hay endpoints para editar o borrar auditoría; el ORM también bloquea esos c
 
 El servidor existente devuelve 403/404 con la aplicación accesible y metadata sin indexación. Los assets compilados con hash usan caché larga; la aplicación se revalida, los datos privados mantienen `no-store` y el servidor aplica compresión, `nosniff`, política de referente y denegación de frames.
 
-La URL canónica y el sitemap usan el origen de la petición. En ECS, `SEO_TRUSTED_PROXY_CIDRS` limita el uso de `X-Forwarded-Proto` para metadata a las subredes privadas del balanceador (`10.42.10.0/24,10.42.11.0/24`, alineadas con WebPublicSubnets). Fuera de esas redes, sin configuración o ante un valor distinto de http/https, se conserva el esquema recibido. Este ajuste no cambia la IP de cliente, autenticación ni permisos. Mantener la restricción de ingreso del servicio al grupo del balanceador y verificar HTTPS al publicar. No se inventa un dominio institucional.
+La URL canónica y el sitemap usan el origen de la petición. En ECS, `SEO_TRUSTED_PROXY_CIDRS` limita el uso de `X-Forwarded-Proto` para metadata a las rangos privados de las subredes del balanceador (`10.42.1.0/24,10.42.2.0/24`, alineadas con WebPublicSubnets). Fuera de esas redes, sin configuración o ante un valor distinto de http/https, se conserva el esquema recibido. Este ajuste no cambia la IP de cliente, autenticación ni permisos. Mantener la restricción de ingreso del servicio al grupo del balanceador y verificar HTTPS al publicar. No se inventa un dominio institucional.
+
+## Respaldo y recuperación
+
+La publicación B–F conserva un snapshot RDS y una copia lógica privada cifrada con AES256, identificados en `PUBLICACION_ENLACES_B_F.md`. La copia lógica se descargó y restauró dentro de una tarea temporal de ECS, con comprobación SHA-256; no se trasladaron datos reales al equipo local. El ensayo verificó que las migraciones conservan las 18 tablas anteriores sin cambios en sus filas y valores.
+
+La restauración de snapshot a otra instancia RDS quedó bloqueada por la cuota del plan gratuito. El ensayo lógico usó PostgreSQL 17 desde una fuente RDS 15.19; no acredita recuperación física de snapshot ni restauración en PostgreSQL 15. Antes de usar esa ruta de recuperación, habilitar capacidad para una instancia privada adicional y comprobarla. AWS describe la restauración de snapshot [en su guía de RDS](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_RestoreFromSnapshot.html).
+
+Los respaldos contienen datos privados y requieren acceso de operación; no publicarlos ni vincularlos como documentos del portal. Mantener snapshot y versión S3 hasta definir su retención institucional. No hay borrado automático de estas copias.
 
 ## Rollback
 

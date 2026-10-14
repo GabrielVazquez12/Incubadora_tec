@@ -1,11 +1,16 @@
-import { EventManagement, EventForm } from './EventManagement';
-import Publications from './Publications.jsx';
-import { Users, Roles } from './Users';
-import { Reports } from './Reports';
-import RegistrationReview from './RegistrationReview';
-import { Projects, ProjectDetail } from '../../shared/projects/Projects';
-import { Application } from '../../shared/applications/Application';
-import { Tutoring } from '../../shared/tutoring/Tutoring';
+import { lazyPage } from '../../shared/portal/lazyPage.jsx';
+
+const EventManagement = lazyPage(() => import('./EventManagement'), 'EventManagement');
+const EventForm = lazyPage(() => import('./EventManagement'), 'EventForm');
+const Publications = lazyPage(() => import('./Publications.jsx'), 'default');
+const Users = lazyPage(() => import('./Users'), 'Users');
+const Roles = lazyPage(() => import('./Users'), 'Roles');
+const Reports = lazyPage(() => import('./Reports'), 'Reports');
+const RegistrationReview = lazyPage(() => import('./RegistrationReview'), 'default');
+const Projects = lazyPage(() => import('../../shared/projects/Projects'), 'Projects');
+const ProjectDetail = lazyPage(() => import('../../shared/projects/Projects'), 'ProjectDetail');
+const Application = lazyPage(() => import('../../shared/applications/Application'), 'Application');
+const Tutoring = lazyPage(() => import('../../shared/tutoring/Tutoring'), 'Tutoring');
 
 export const coordinationRoutes = [
   ['publicaciones', <Publications />],

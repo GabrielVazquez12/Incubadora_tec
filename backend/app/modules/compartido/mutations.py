@@ -89,8 +89,19 @@ def save_appointments(db, user, key, values, row, payload, new, collection):
 
 
 def save_innovation(db, user, key, values, row, payload, new, collection):
+    team_version = values.pop('equipo_version', None)
     if user.rol == RolUsuario.externo or (row and not admin(user) and row.user != user.id):
         fail("No tienes acceso a esta propuesta.", 403)
+    if row:
+        from app.models.innovatec import EquipoInnovaTec
+        linked = db.scalar(select(EquipoInnovaTec.id).where(EquipoInnovaTec.innovacion_id == row.id))
+        if linked and (not admin(user) or values['etapa'] != row.datos.get('etapa', 'Local')):
+            fail("Esta propuesta tiene expediente InnovaTec. Edita su captura o etapa desde Gestión de equipos para conservar documentos, integrantes e historial.", 409)
+        if linked:
+            from app.modules.innovacion.services import check_version, audit
+            team = record(db, EquipoInnovaTec, linked, lock=True)
+            check_version(team, team_version)
+            audit(team, user, 'revision_propuesta', estatus=values['estatus'])
     if new and not any(values["modulo"] == section["title"] and values["categoria"] in [item[0] for item in section["items"]] for section in INNOVATION_CATALOG.values()):
         fail("Selecciona un evento y una categoría del catálogo de Innovatec.", 422)
     previous = row.datos.get("estatus", "Borrador") if row else None

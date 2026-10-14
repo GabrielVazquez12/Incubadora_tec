@@ -1,0 +1,10 @@
+.survey-workspace { min-width: 0; overflow-wrap: anywhere; }
+.survey-workspace .table-scroll table { min-width: 40rem; }
+.survey-workspace .field, .survey-workspace fieldset, .survey-workspace input, .survey-workspace textarea, .survey-workspace select { min-width: 0; max-width: 100%; }
+.survey-workspace fieldset { border: 1px solid var(--color-border); border-radius: var(--radius-medium); padding: var(--space-2); margin-block: var(--space-1); }
+.survey-text { white-space: pre-wrap; }
+.survey-bar { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto; gap: var(--space-1); margin-block: var(--space-1); align-items: center; }
+.survey-bar progress { width: 100%; accent-color: var(--color-primary); }
+.survey-donut > div { width: 160px; height: 160px; border-radius: 50%; position: relative; margin-block: var(--space-2); }
+.survey-donut > div::after { content: ''; position: absolute; inset: 30px; border-radius: 50%; background: var(--color-surface); }
+@media (max-width: 480px) { .survey-bar { grid-template-columns: minmax(0, 1fr); } .survey-workspace figure { margin-inline: 0; } }

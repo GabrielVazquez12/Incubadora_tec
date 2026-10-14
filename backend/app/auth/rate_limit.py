@@ -8,6 +8,25 @@ _attempts = {}
 _lock = Lock()
 WINDOW = 15 * 60
 LIMIT = 60
+_public_attempts = {}
+
+
+def public_attempt(namespace, address):
+    """Bound anonymous contact writes without retaining raw IP addresses."""
+    now = monotonic()
+    key = sha256(f'{namespace}:{address}'.encode()).digest()
+    with _lock:
+        if len(_public_attempts) >= 10000:
+            for expired in [entry for entry, (started, _) in _public_attempts.items() if now - started >= 60]:
+                del _public_attempts[expired]
+            if key not in _public_attempts and len(_public_attempts) >= 10000:
+                raise HTTPException(429, 'Demasiadas solicitudes. Inténtalo más tarde.', headers={'Retry-After': '60'})
+        started, count = _public_attempts.get(key, (now, 0))
+        if now - started >= 60:
+            started, count = now, 0
+        if count >= 30:
+            raise HTTPException(429, 'Demasiados mensajes. Inténtalo en un minuto.', headers={'Retry-After': str(max(1, int(60 - (now - started))))})
+        _public_attempts[key] = (started, count + 1)
 
 
 def login_attempt(email):

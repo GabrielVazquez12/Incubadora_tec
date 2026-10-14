@@ -21,7 +21,9 @@ export default function PortalLayout({ role, preview = false, innovation = false
   const nav = innovation ? [['inicio', 'Inicio'], ['certamen', 'Certamen'], ['hackatec', 'HackaTec'], ['innobotica', 'InnoBótica'], ['innovaccion', 'InnovAcción'], ['retos', 'Retos Nacionales'], ['registros', 'Registros']] : [links[role][0], ['boletin', 'Boletín'], ...links[role].slice(1).map(([path, title]) => [path, path === 'publicaciones' ? 'Gestionar noticias' : title])];
   const logout = () => { if (!preview) { localStorage.removeItem('access_token'); localStorage.removeItem('rol'); } navigate('/'); };
   const submenus = role === 'admin' && !innovation ? {
-    publicaciones: [['difusion', 'Difusión'], ['difusion/visitas', 'Visitas a salones'], ['difusion/plantillas', 'Plantillas de mensajes']],
+    publicaciones: [['difusion', 'Difusión'], ['difusion/visitas', 'Visitas a salones'], ['difusion/plantillas', 'Plantillas de mensajes'], ['difusion/preguntas', 'Preguntas frecuentes'], ['difusion/contacto', 'Contacto y configuración']],
+    eventos: [['eventos/fichas', 'Fichas institucionales']],
+    ...(user?.gestiona_accesos ? { roles: [['roles/accesos', 'Perfiles complementarios'], ['roles/auditoria', 'Auditoría']] } : {}),
     reportes: [['reportes/proyectos', 'Proyectos'], ['reportes/emprendedores', 'Emprendedores'], ['reportes/avances', 'Avances'], ['reportes/estadisticas', 'Estadísticas'], ['reportes/indicadores', 'Indicadores']],
     seguimiento: [['seguimiento/semana', 'Seguimientos de la semana'], ['seguimiento/vencidos', 'Seguimientos vencidos'], ['seguimiento/inactivos', 'Inactivos']],
   } : {};
@@ -33,6 +35,7 @@ export default function PortalLayout({ role, preview = false, innovation = false
       ['innovatec', 'Gestión InnovaTec', [['innovatec/convocatoria', 'Convocatoria'], ['innovatec/equipos', 'Equipos'], ['innovatec/platicas', 'Pláticas'], ['innovatec/diplomas', 'Diplomas'], ['innovatec/seguimiento', 'Seguimiento de equipos']]],
     ]) items.push({ to: `${base}/${path}`, label, children: children.map(([child, title]) => ({ to: `${base}/${child}`, label: title })) });
   }
+  if (!innovation && !preview && user?.perfil === 'asesor') items.push({ to: `${base}/asesoria`, label: 'Expedientes asignados' });
   if (innovation) items.push({ to: home, label: 'Incubadora' });
   else if (role !== 'externo') items.push({ to: `${preview ? '/vista-previa' : ''}/innovatecnm/inicio${preview ? `?rol=${role}` : ''}`, label: 'InnovaTecNM', accent: true, description: 'Módulo interno de innovación' });
   const account = <div className="account"><span className="avatar" aria-hidden="true">{preview ? demoPeople[role][0] : user?.nombre?.[0]}</span><div><strong>{preview ? demoPeople[role] : user?.nombre}</strong><small>{roleNames[role]}</small></div><button type="button" className="text-button" onClick={logout}>{preview ? 'Salir de vista previa' : 'Cerrar sesión'}</button></div>;

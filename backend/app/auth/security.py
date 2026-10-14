@@ -52,6 +52,7 @@ def get_current_user(
     user = db.query(Usuario).filter(Usuario.id == user_id).first()
     if user is None or payload.get("version", 0) != user.auth_version:
         raise credentials_exception
+    db.info["actor_id"] = user.id
     return user
 
 

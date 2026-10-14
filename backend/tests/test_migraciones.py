@@ -9,6 +9,8 @@ import uuid
 
 from alembic.autogenerate import compare_metadata
 from alembic.migration import MigrationContext
+from alembic.config import Config
+from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import IntegrityError
@@ -41,6 +43,36 @@ class MigracionesTest(unittest.TestCase):
             with engine.connect() as connection:
                 self.assertEqual(compare_metadata(MigrationContext.configure(connection), Base.metadata), [])
             with Session(engine) as session:
+                from app.models import AuditoriaAcceso
+                audit_id = uuid.uuid4()
+                session.add(AuditoriaAcceso(id=audit_id, actor_id=uuid.uuid4(), entidad='prueba_sintetica', registro_id='rollback', operacion='crear', campos=['nombre']))
+                session.commit()
+                with self.assertRaises(subprocess.CalledProcessError):
+                    migrate('downgrade', '526ccbbe0502')
+                self.assertEqual(session.scalar(text('SELECT count(*) FROM auditoria_acceso')), 1)
+                # Remove only this synthetic fixture from the isolated database to test empty rollback.
+                session.execute(text('DELETE FROM auditoria_acceso WHERE id = :id'), {'id': audit_id})
+                session.commit()
+                from app.models import PreguntaFrecuente
+                faq = PreguntaFrecuente(seccion='incubadora', pregunta='Prueba de conservación', respuesta='Datos sintéticos', orden=0)
+                session.add(faq)
+                session.commit()
+                with self.assertRaises(subprocess.CalledProcessError):
+                    migrate('downgrade', '0c7df40d5311')
+                self.assertEqual(session.scalar(text('SELECT count(*) FROM preguntas_frecuentes')), 1)
+                session.delete(faq)
+                session.commit()
+                from app.models.innovatec import ConvocatoriaInnovaTec
+                call = ConvocatoriaInnovaTec(anio=2026, datos={})
+                session.add(call)
+                session.commit()
+                with self.assertRaises(subprocess.CalledProcessError):
+                    migrate('downgrade', '3a608b5c8533')
+                self.assertEqual(session.scalar(text('SELECT count(*) FROM convocatorias_innovatec')), 1)
+                self.assertEqual(session.scalar(text('SELECT version_num FROM alembic_version')), ScriptDirectory.from_config(Config('alembic.ini')).get_current_head())
+                # Only this synthetic record is removed to test the empty-table rollback below.
+                session.delete(call)
+                session.commit()
                 user = Usuario(nombre="Prueba", correo="prueba@example.test", password_hash="test", rol=RolUsuario.estudiante)
                 project = Proyecto(nombre="Prueba", propietario=user)
                 session.add(project)

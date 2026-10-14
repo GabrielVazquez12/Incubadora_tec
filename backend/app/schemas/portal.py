@@ -94,6 +94,7 @@ class ApplicationInput(RequestInput):
 
 
 class InnovationInput(RequestInput):
+    equipo_version: StrictInt | None = Field(default=None, ge=1)
     nombre: Name
     equipo: Name
     lider: Name

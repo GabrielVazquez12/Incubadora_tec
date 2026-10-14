@@ -9,6 +9,11 @@ from app.modules.compartido import routes as portal
 from app.modules.compartido import documents
 from app.modules.compartido import newsletter
 from app.modules.compartido import editorial_media
+from app.modules.innovacion import routes as innovatec
+from app.modules.incubadora import routes as incubation
+from app.modules.encuestas import routes as surveys
+from app.modules.difusion import routes as outreach
+from app.modules.gobierno import routes as governance
 from botocore.exceptions import BotoCoreError, ClientError
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
@@ -16,6 +21,7 @@ import logging
 from fastapi.exceptions import RequestValidationError
 from app.request_safety import BodyLimitMiddleware
 from app.schemas.validation import validation_errors
+import app.auditing  # Registers transaction-bound audit hooks.
 import app.models  # noqa: F401 — el esquema se administra con Alembic
 
 
@@ -32,12 +38,21 @@ app.add_middleware(
 
 app.include_router(auth.router)
 app.include_router(admin.router)
+app.include_router(incubation.router)
+app.include_router(surveys.router)
+app.include_router(outreach.router)
+app.include_router(governance.router)
 app.include_router(portal.router)
 app.include_router(coordination.router)
 app.include_router(students.router)
 app.include_router(documents.router)
 app.include_router(newsletter.router)
 app.include_router(editorial_media.router)
+app.include_router(innovatec.router)
+app.include_router(innovatec.public)
+app.include_router(incubation.public)
+app.include_router(surveys.public)
+app.include_router(outreach.public)
 
 
 @app.exception_handler(RequestValidationError)

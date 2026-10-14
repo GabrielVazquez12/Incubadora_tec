@@ -6,6 +6,10 @@ from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.pagesizes import landscape, A4
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.platypus import Image
+from pathlib import Path
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 
 def build_event_certificate(registration, event, participant):
@@ -30,4 +34,35 @@ def build_event_certificate(registration, event, participant):
                 text(f"Folio: {registration.id}", "small"),
                 text("Documento generado por el portal. No incluye firmas ni sellos institucionales.", "small")]
     document.build(contents)
+    return output.getvalue()
+
+
+def build_innovatec_diploma(team, convocatoria, proposal, member):
+    """Digital recognition, authorized by coordination; no invented signatures."""
+    output = BytesIO()
+    document = SimpleDocTemplate(output, pagesize=A4, leftMargin=70, rightMargin=70,
+                                topMargin=90, bottomMargin=45, title='Diploma InnovaTec',
+                                author='Enlaces Institucionales ITS')
+    primary = colors.HexColor('#700020')
+    styles = {
+        'title': ParagraphStyle('diploma-title', fontName='Times-Bold', fontSize=25, leading=31, alignment=TA_CENTER, textColor=primary),
+        'name': ParagraphStyle('diploma-name', fontName='Helvetica-Bold', fontSize=20, leading=27, alignment=TA_CENTER),
+        'body': ParagraphStyle('diploma-body', fontName='Helvetica', fontSize=12, leading=18, alignment=TA_CENTER),
+        'small': ParagraphStyle('diploma-small', fontName='Helvetica', fontSize=9, leading=13, alignment=TA_CENTER),
+    }
+    paragraph = lambda value, style='body': Paragraph(escape(str(value)), styles[style])
+    logo = Path(__file__).resolve().parents[2] / 'assets' / 'enlaces-institucionales.jpeg'
+    role = 'asesor docente' if member.tipo == 'asesor' else 'participante'
+    issued = datetime.now(ZoneInfo('America/Mexico_City')).strftime('%d/%m/%Y')
+    document.build([
+        Image(str(logo), width=150, height=150), Spacer(1, 90),
+        paragraph('Diploma de participación', 'title'), Spacer(1, 18),
+        paragraph('Se reconoce a'), Spacer(1, 12), paragraph(member.nombre, 'name'), Spacer(1, 18),
+        paragraph(f'como {role} del proyecto'), paragraph(proposal.datos['nombre'], 'name'), Spacer(1, 18),
+        paragraph(f'InnovaTec — proceso local del Instituto Tecnológico de Saltillo, {convocatoria.anio}.'),
+        Spacer(1, 24), paragraph(f'Equipo: {proposal.datos["equipo"]}'),
+        paragraph(f'Folio: {team.folio} / {member.id}', 'small'),
+        paragraph(f'Emisión del portal: {issued}', 'small'), Spacer(1, 16),
+        paragraph('Documento generado por el portal. No incluye firmas ni sellos institucionales.', 'small'),
+    ])
     return output.getvalue()

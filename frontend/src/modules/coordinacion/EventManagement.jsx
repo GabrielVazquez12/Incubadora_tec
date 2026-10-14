@@ -1,6 +1,6 @@
 import { ImageEditor } from '../../shared/EditorialImages.jsx';
 import { useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { usePortal } from '../../shared/portal/PortalContext.jsx';
 import { usePortalRoute } from '../../shared/portal/PortalLayout.jsx';
 import { dateLabel, money, roleNames, uid } from '../../shared/portal/data.js';
@@ -12,7 +12,11 @@ export function EventManagement({ initialTab = 'eventos' }) {
   const { data, update, remove, addType, notify, confirmAttendance, downloadCertificate, busy } = usePortal();
   const { base } = usePortalRoute();
   const [tab, setTab] = useState(initialTab);
-  const [eventId, setEventId] = useState(data.events[0]?.id || '');
+  const [searchParams] = useSearchParams();
+  const [eventId, setEventId] = useState(() => {
+    const requested = searchParams.get('evento');
+    return data.events.some(event => event.id === requested) ? requested : data.events[0]?.id || '';
+  });
   const [typeModal, setTypeModal] = useState(false);
   const [deleting, setDeleting] = useState(null);
   const [error, setError] = useState('');

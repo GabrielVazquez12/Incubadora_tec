@@ -20,7 +20,7 @@ export default function Innovation({ section = 'inicio' }) {
   const records = data.innovation.filter(r => role === 'admin' || r.user === userId);
   const shown = records.filter(r => (!status || r.estatus === status) && `${r.nombre} ${r.equipo} ${r.modulo}`.toLowerCase().includes(search.toLowerCase()));
   const current = detail && records.find(r => r.id === detail.id);
-  const editable = current && role !== 'admin' && ['Borrador', 'Correcciones solicitadas'].includes(current.estatus);
+  const editable = current && !current.equipo_id && role !== 'admin' && ['Borrador', 'Correcciones solicitadas'].includes(current.estatus);
   function closeDetail() { setDetail(null); setEditing(false); setError(''); }
   async function saveProposal(e) {
     e.preventDefault();
@@ -43,7 +43,7 @@ export default function Innovation({ section = 'inicio' }) {
     {category && role !== 'admin' && <Modal title="Preparar registro" onClose={() => setCategory(null)}><p className="info-box">{catalog.title} · {category}</p><Form className="form-stack" data-unsaved="true" onSubmit={register}><Field label="Nombre del proyecto" name="nombre" required maxLength={160} /><Field label="Nombre del equipo" name="equipo" required maxLength={160} /><Field label="Estudiante líder" name="lider" required maxLength={160} /><Field label="Asesor" name="asesor" required maxLength={160} /><TextArea label="Descripción de la propuesta" name="descripcion" required maxLength={3000} />{error && <p className="error" role="alert">{error}</p>}<button className="button">Guardar borrador</button></Form></Modal>}
     {current && <Modal title={current.nombre} onClose={closeDetail}>
       <dl className="event-meta"><div><dt>Equipo</dt><dd>{current.equipo}</dd></div><div><dt>Líder</dt><dd>{current.lider}</dd></div><div><dt>Asesor</dt><dd>{current.asesor}</dd></div><div><dt>Registro</dt><dd>{dateLabel(current.fecha)}</dd></div><div><dt>Categoría</dt><dd>{current.categoria}</dd></div></dl>
-      <p>{current.descripcion}</p><Badge>{current.estatus}</Badge>
+      <p>{current.descripcion}</p>{current.equipo_id ? <p><Link to={`/innovatec/equipos/${current.equipo_id}`}>Abrir expediente de equipo</Link></p> : current.modulo === catalogs.certamen.title && role !== "admin" ? <p><Link to={`/innovatec/inscripcion?propuesta=${current.id}`}>Completar inscripción de equipo en convocatoria</Link></p> : null}<Badge>{current.estatus}</Badge>
       {current.observaciones && <p className="info-box">Observaciones de coordinación: {current.observaciones}</p>}
       {editable && !editing && <div className="form-actions"><button className="button secondary" onClick={() => setEditing(true)}>Editar propuesta</button><button className="button" disabled={busy} onClick={async () => { if (await update('innovation', { ...current, estatus: 'En revisión', estatus_anterior: current.estatus })) { closeDetail(); notify('Propuesta enviada a coordinación.'); } }}>Enviar a revisión</button></div>}
       {editable && editing && <Form className="form-stack" data-unsaved="true" onSubmit={saveProposal}>

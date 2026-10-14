@@ -21,3 +21,9 @@
 @media (max-width: 767px) { .stepper-horizontal { grid-template-columns: 1fr; gap: var(--space-6); } }
 @media (max-width: 1023px) { .strategy-grid { grid-template-columns: repeat(3,1fr); } }
 @media (max-width: 767px) { .enlaces-hero { grid-template-columns: 1fr; gap: var(--space-2); }.enlaces-hero .brand-full { max-width: 520px; }.enlaces-hero h1 { font-size: 2.5rem; }.pillars { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-1); }.pillars a { flex-direction: column; justify-content: center; text-align: center; gap: var(--space-1); font-size: var(--type-label); overflow-wrap: anywhere; }.program-grid, .strategy-grid { grid-template-columns: 1fr; }.programs, .strategy-section { padding-block: var(--space-6); }.auth-page > .auth-shell { grid-template-columns: 1fr; gap: var(--space-3); }.auth-identity .brand-full { max-width: 440px; }.auth-page .auth-card { padding: var(--space-3); }.public-information { padding-block: var(--space-4); } }
+
+/* Preserve footer layout while avoiding its initial offscreen rendering work. */
+@supports (content-visibility: auto) and (contain-intrinsic-block-size: auto 28rem) {
+  .landing > .enlaces-footer { content-visibility: auto; contain-intrinsic-block-size: auto 28rem; }
+  @media (max-width: 767px) { .landing > .enlaces-footer { contain-intrinsic-block-size: auto 75rem; } }
+}

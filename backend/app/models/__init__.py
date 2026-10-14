@@ -7,3 +7,4 @@ from app.models.portal import Avance, Tarea, TipoEvento, Evento, Inscripcion, Pa
 
 from app.models.portal import RegistroInicial
 from app.models.innovatec import ConvocatoriaInnovaTec, ArchivoConvocatoriaInnovaTec, EquipoInnovaTec, IntegranteInnovaTec, DocumentoInnovaTec, PlaticaInnovaTec
+from app.models.incubadora import ConfiguracionIncubadora, ServicioCatalogo, HitoCatalogo, DiagnosticoIncubadora, ExpedienteIncubadora, AtencionIncubadora, ProyectoHito, CanalizacionIncubadora

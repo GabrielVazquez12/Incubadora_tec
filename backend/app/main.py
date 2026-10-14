@@ -10,6 +10,7 @@ from app.modules.compartido import documents
 from app.modules.compartido import newsletter
 from app.modules.compartido import editorial_media
 from app.modules.innovacion import routes as innovatec
+from app.modules.incubadora import routes as incubation
 from botocore.exceptions import BotoCoreError, ClientError
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
@@ -33,6 +34,7 @@ app.add_middleware(
 
 app.include_router(auth.router)
 app.include_router(admin.router)
+app.include_router(incubation.router)
 app.include_router(portal.router)
 app.include_router(coordination.router)
 app.include_router(students.router)
@@ -41,6 +43,7 @@ app.include_router(newsletter.router)
 app.include_router(editorial_media.router)
 app.include_router(innovatec.router)
 app.include_router(innovatec.public)
+app.include_router(incubation.public)
 
 
 @app.exception_handler(RequestValidationError)

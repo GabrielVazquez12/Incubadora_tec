@@ -35,7 +35,10 @@ assert.ok(!newsCard.includes('alt="Fotografía"'), 'Secondary images belong in t
 assert.ok(publicLanding.includes('Boletín de la comunidad ITS'));
 assert.ok(!publicLanding.includes('/vista-previa'));
 assert.ok(!publicLanding.includes('Explorar vista previa'));
-assert.ok(publicLanding.indexOf('newsletter-title') < publicLanding.indexOf('Tu idea tiene futuro'));
+assert.ok(publicLanding.indexOf('enlaces-hero') < publicLanding.indexOf('newsletter-title'));
+assert.ok(publicLanding.includes('/brand/enlaces-institucionales.jpeg'));
+assert.ok(publicLanding.includes('Incubadora de Empresas') && publicLanding.includes('Una sola red'));
+assert.ok(publicLanding.includes('¡Tu idea, nuestro apoyo!'));
 for (const path of ['/vista-previa', '/vista-previa/emprendedor/inicio', '/vista-previa/coordinador/inicio', '/vista-previa/innovatecnm/inicio']) {
   const removed = renderToString(<StaticRouter location={path}><PortalProvider><AppRoutes /></PortalProvider></StaticRouter>);
   assert.ok(removed.includes('Página no encontrada'), `Public demo route remains accessible: ${path}`);
@@ -43,9 +46,9 @@ for (const path of ['/vista-previa', '/vista-previa/emprendedor/inicio', '/vista
 
 const pages = [
   ['emprendedor/inicio', 'Bienvenido(a), Diego Ramírez'],
-  ['emprendedor/boletin', 'Actualidad de la incubadora'],
-  ['coordinador/boletin', 'Actualidad de la incubadora'],
-  ['externo/boletin', 'Actualidad de la incubadora'],
+  ['emprendedor/boletin', 'Actualidad institucional'],
+  ['coordinador/boletin', 'Actualidad institucional'],
+  ['externo/boletin', 'Actualidad institucional'],
   ['emprendedor/proyectos', 'Mis proyectos'],
   ['emprendedor/proyectos/nuevo', 'Nuevo proyecto'],
   ['emprendedor/proyectos/ecopack', 'EcoPack'],

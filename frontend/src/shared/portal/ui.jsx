@@ -2,6 +2,17 @@ import { useEffect, useId, useRef } from 'react';
 import { usePortal } from './PortalContext.jsx';
 import { passwordError } from '../registration/validation.js';
 
+export function Skeleton({ label = 'Cargando información…' }) {
+  return <div className="loading-skeleton"><p role="status">{label}</p><div aria-hidden="true"><span /><span /><span /></div></div>;
+}
+
+export function Stepper({ steps, horizontal = false, label = 'Proceso' }) {
+  return <ol className={`institutional-stepper${horizontal ? ' stepper-horizontal' : ''}`} aria-label={label}>{steps.map((step, index) => {
+    const item = typeof step === 'string' ? { title: step } : step;
+    return <li key={`${index}-${item.title}`}><h3>{item.title}</h3>{item.description && <p>{item.description}</p>}</li>;
+  })}</ol>;
+}
+
 export function Heading({ eyebrow, title, description, action }) {
   return <header className="page-heading"><div><p className="eyebrow">{eyebrow || 'INCUBADORA ITS'}</p><h1>{title}</h1>{description && <p className="muted">{description}</p>}</div>{action}</header>;
 }

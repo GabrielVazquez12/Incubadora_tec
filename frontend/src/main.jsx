@@ -6,6 +6,7 @@ import './shared/design/tokens.css'
 import './shared/design/brand.css'
 import './shared/design/navigation.css'
 import './shared/design/layout.css'
+import './shared/design/public.css'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

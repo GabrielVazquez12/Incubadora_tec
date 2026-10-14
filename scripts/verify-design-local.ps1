@@ -1,4 +1,4 @@
-param([int]$Port=8091,[switch]$SkipBuild,[switch]$InnovaTec,[switch]$OnlyInnovaTec,[switch]$Incubadora)
+param([int]$Port=8091,[switch]$SkipBuild,[switch]$InnovaTec,[switch]$OnlyInnovaTec,[switch]$Incubadora,[switch]$Encuestas)
 $ErrorActionPreference='Stop'
 $repoRoot=Split-Path -Parent $PSScriptRoot
 Set-Location $repoRoot
@@ -65,6 +65,10 @@ try {
   if($Incubadora) {
     node frontend/scripts/incubadora-browser.cjs
     if($LASTEXITCODE -ne 0){throw 'Falló el flujo Incubadora en Chrome.'}
+  }
+  if($Encuestas) {
+    node frontend/scripts/encuestas-browser.cjs
+    if($LASTEXITCODE -ne 0){throw 'Falló el flujo Encuestas en Chrome.'}
   }
   Write-Host "Verificación aprobada. Capturas: $artifacts"
 } finally {

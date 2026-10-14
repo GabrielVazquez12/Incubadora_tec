@@ -19,6 +19,7 @@ import CallAdmin from './modules/innovatec/CallAdmin.jsx';
 import { Teams, TeamDetail } from './modules/innovatec/Teams.jsx';
 import { Talks, Diplomas } from './modules/innovatec/Talks.jsx';
 import { PublicIncubation, Dossier, Followups, Indicators, CatalogAdmin } from './modules/incubadora/Incubation.jsx';
+import { PublicSurveys, SurveyAdmin } from './modules/encuestas/Surveys.jsx';
 import { usePortal } from './shared/portal/PortalContext.jsx';
 import { Skeleton } from './shared/portal/ui.jsx';
 import { rolePaths } from './shared/portal/data.js';
@@ -68,10 +69,11 @@ function portalRoutes(role, preview) {
     {role === 'admin' && <Route path="catalogo" element={<CatalogAdmin />} />}
     {role === 'admin' && <Route path="catalogo/hitos" element={<CatalogAdmin hitos />} />}
     {role === 'admin' && <Route path="reportes/indicadores" element={<Indicators />} />}
+    {role === 'admin' && <Route path="encuestas" element={<SurveyAdmin />} />}
+    {role === 'admin' && <Route path="encuestas/resultados" element={<SurveyAdmin results />} />}
     {role === 'admin' && ['semana', 'vencidos', 'inactivos'].map(view => <Route key={view} path={`seguimiento/${view}`} element={<Followups view={view} />} />)}
     {role === 'admin' && [
       ['difusion', 'Difusión'], ['difusion/visitas', 'Visitas a salones'], ['difusion/plantillas', 'Plantillas de mensajes'],
-      ['encuestas', 'Encuestas'], ['encuestas/resultados', 'Resultados de encuestas'],
     ].map(([path, title]) => <Route key={path} path={path} element={<PendingModule title={title} />} />)}
   </Route>;
 }
@@ -81,7 +83,10 @@ export function AppRoutes({ enablePreview = false }) {
     <Route path="/" element={<Landing />} />
     <Route path="/login" element={<Login />} />
     <Route path="/registro" element={<Registro />} />
-    {['vinculacion', 'eventos', 'contacto', 'encuestas'].map(section => <Route key={section} path={`/${section}`} element={<PublicPage section={section} />} />)}
+    {['vinculacion', 'eventos', 'contacto'].map(section => <Route key={section} path={`/${section}`} element={<PublicPage section={section} />} />)}
+    <Route path="/encuestas" element={<PublicSurveys />} />
+    <Route path="/encuestas/:id" element={<PublicSurveys />} />
+    <Route path="/admin/encuestas" element={<RutaProtegida rolesPermitidos={['admin']}><Navigate replace to="/coordinador/encuestas" /></RutaProtegida>} />
     <Route path="/incubadora" element={<PublicIncubation />} />
     <Route path="/incubadora/registro" element={<PublicIncubation section="registro" />} />
     <Route path="/incubadora/catalogo" element={<PublicIncubation section="catalogo" />} />

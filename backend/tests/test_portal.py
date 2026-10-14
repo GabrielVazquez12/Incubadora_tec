@@ -408,6 +408,77 @@ class PortalTest(unittest.TestCase):
         overdue = self.request('GET', '/portal/incubadora/seguimientos?vista=vencidos', token=coordinator)
         self.assertTrue(any(row['proyecto_id'] == project_id for row in overdue['items']))
 
+    def test_surveys_types_duplicates_freeze_privacy_and_results(self):
+        from app.modules.compartido.services import today
+        day = today()
+        user = self.create_user('survey_respondent')
+        token = self.login('survey_respondent@example.com')
+        admin = self.login('admin@example.com')
+        survey_id = str(uuid4())
+        qids = [str(uuid4()) for _ in range(4)]
+        definitions = [
+            {'id': qids[0], 'titulo': 'Opción única', 'tipo': 'seleccion_unica', 'opciones': ['A', 'B']},
+            {'id': qids[1], 'titulo': 'Necesidades', 'tipo': 'multiseleccion', 'opciones': ['Mercado', 'Ventas']},
+            {'id': qids[2], 'titulo': 'Valoración', 'tipo': 'escala', 'minimo': 1, 'maximo': 5},
+            {'id': qids[3], 'titulo': 'Comentario opcional', 'tipo': 'texto', 'obligatoria': False},
+        ]
+        payload = {'titulo': 'Encuesta temporal de prueba', 'descripcion': 'Datos sintéticos, sin publicación real.', 'publico': 'alumnos', 'anonima': True, 'publicada': True, 'apertura': (day - timedelta(days=7)).isoformat(), 'cierre': (day + timedelta(days=7)).isoformat(), 'preguntas': definitions}
+        self.request('PUT', f'/portal/encuestas/{survey_id}', payload, token, status=403)
+        self.request('PUT', f'/portal/encuestas/{survey_id}', {**payload, 'anonima': 'false'}, admin, status=422)
+        self.request('PUT', f'/portal/encuestas/{survey_id}', {**payload, 'cierre': '2026-02-30'}, admin, status=422)
+        survey = self.request('PUT', f'/portal/encuestas/{survey_id}', payload, admin)
+        self.request('GET', '/portal/encuestas', token=token, status=403)
+        response_id = str(uuid4())
+        answers = {'id': response_id, 'version_encuesta': survey['version'], 'respuestas': {qids[0]: 'A', qids[1]: ['Mercado', 'Ventas'], qids[2]: 3, qids[3]: ' café y piñón '}}
+        self.request('POST', f'/public/encuestas/{survey_id}/respuestas', answers, status=409)
+        with urlopen(self.base + f'/public/encuestas/{survey_id}', timeout=20) as response:
+            cookie = response.headers['Set-Cookie'].split(';', 1)[0]
+            self.assertIn('HttpOnly', response.headers['Set-Cookie'])
+            self.assertIn('SameSite=lax', response.headers['Set-Cookie'])
+            self.assertTrue(json.loads(response.read())['abierta'])
+        def anonymous(body, status=201):
+            req = Request(self.base + f'/public/encuestas/{survey_id}/respuestas', data=json.dumps(body).encode(), headers={'Content-Type': 'application/json', 'Cookie': cookie}, method='POST')
+            try:
+                response = urlopen(req, timeout=20)
+            except HTTPError as error:
+                response = error
+            with response:
+                data = json.loads(response.read())
+                self.assertEqual(response.status, status, data)
+                return data
+        anonymous({**answers, 'respuestas': {**answers['respuestas'], qids[2]: '3'}}, 422)
+        anonymous({**answers, 'respuestas': {**answers['respuestas'], qids[1]: ['Mercado', 'Mercado']}}, 422)
+        anonymous({**answers, 'respuestas': {**answers['respuestas'], qids[0]: 'ADMIN'}}, 422)
+        anonymous({**answers, 'respuestas': {qids[0]: 'A'}}, 422)
+        anonymous({**answers, 'respuestas': {**answers['respuestas'], str(uuid4()): 'Ajena'}}, 422)
+        with ThreadPoolExecutor(2) as pool:
+            confirmations = list(pool.map(lambda _: anonymous(answers), range(2)))
+        self.assertEqual(confirmations[0]['id'], confirmations[1]['id'])
+        anonymous({**answers, 'id': str(uuid4())}, 409)
+        self.request('GET', f'/portal/encuestas/{survey_id}/resultados', token=token, status=403)
+        result = self.request('GET', f'/portal/encuestas/{survey_id}/resultados', token=admin)
+        self.assertEqual(result['total'], 1)
+        self.assertEqual(result['preguntas'][0]['distribucion'][0]['porcentaje'], 100)
+        self.assertEqual(sum(option['porcentaje'] for option in result['preguntas'][1]['distribucion']), 200)
+        self.assertEqual(result['preguntas'][3]['textos'], ['café y piñón'])
+        self.assertNotIn('identidad', json.dumps(result))
+        self.assertNotIn('usuario_id', json.dumps(result['respuestas']))
+        changed = {**payload, 'version': survey['version'], 'preguntas': [{**definitions[0], 'titulo': 'Pregunta alterada'}, *definitions[1:]]}
+        self.request('PUT', f'/portal/encuestas/{survey_id}', changed, admin, status=409)
+        self.request('PUT', f'/portal/encuestas/{survey_id}', {**payload, 'version': survey['version'], 'anonima': False}, admin, status=409)
+        identified_id = str(uuid4())
+        config = self.request('GET', '/portal/incubadora/configuracion', token=admin)
+        self.request('PUT', '/portal/incubadora/configuracion', {'version': config['version'], 'aviso_privacidad': 'Aviso sintético exclusivo de pruebas; sin validez institucional.', 'aviso_aprobado': True}, admin)
+        identified = self.request('PUT', f'/portal/encuestas/{identified_id}', {**payload, 'anonima': False, 'preguntas': [{**definitions[0], 'id': str(uuid4())}]}, admin)
+        identified_answers = {'id': str(uuid4()), 'version_encuesta': identified['version'], 'respuestas': {identified['preguntas'][0]['id']: 'B'}, 'acepto_privacidad': True}
+        self.request('POST', f'/public/encuestas/{identified_id}/respuestas', identified_answers, status=401)
+        self.request('POST', f'/public/encuestas/{identified_id}/respuestas', {**identified_answers, 'acepto_privacidad': False}, token, status=422)
+        self.request('POST', f'/public/encuestas/{identified_id}/respuestas', identified_answers, token, status=201)
+        self.request('POST', f'/public/encuestas/{identified_id}/respuestas', {**identified_answers, 'id': str(uuid4())}, token, status=409)
+        closed = self.request('PUT', f'/portal/encuestas/{survey_id}', {**payload, 'version': survey['version'], 'cierre': (day - timedelta(days=1)).isoformat()}, admin)
+        self.assertGreater(closed['version'], survey['version'])
+        anonymous({**answers, 'version_encuesta': closed['version']}, 409)
+
     def create_user(self, alias, role="estudiante"):
         return self.request("POST", "/auth/registro", {"nombre": alias, "correo": f"{alias}@example.com", "password": "TestPass2026!", "rol": role}, status=201)
 

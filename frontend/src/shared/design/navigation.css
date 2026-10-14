@@ -19,7 +19,7 @@
 .navigation-dropdown a { display: block; padding: var(--space-2); text-decoration: none; font-size: var(--type-small); color: var(--color-ink); }
 .navigation-dropdown a.active, .navigation-dropdown a:hover { color: var(--color-primary); background: var(--color-primary-soft); }
 .mobile-menu { margin: 0 0 0 auto; width: min(100vw, 420px); max-width: 100vw; height: 100dvh; max-height: 100dvh; padding: var(--space-2); border: 0; color: var(--color-ink); background: var(--color-surface); overflow-y: auto; }
-.mobile-menu::backdrop { background: rgb(43 43 46 / 45%); }
+.mobile-menu::backdrop { background: var(--color-backdrop); }
 .mobile-menu-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); margin-bottom: var(--space-2); }
 .mobile-menu-heading h2 { font: 600 var(--type-h3)/var(--line-title) var(--font-display); margin: 0; color: var(--color-primary); }
 .mobile-menu-heading .menu-toggle { display: flex; }
@@ -33,4 +33,5 @@
 .mobile-navigation-item summary { padding: var(--space-1) var(--space-2); font-size: var(--type-small); color: var(--color-muted); cursor: pointer; }
 .mobile-navigation-item details a { padding-left: var(--space-4); }
 .enlaces-header :focus-visible { outline: var(--focus-width) solid var(--color-focus); outline-offset: -3px; }
+.enlaces-header .navigation-item :focus-visible { outline-offset: -3px; }
 @media (max-width: 767px) { .desktop-navigation, .desktop-account { display: none; } .identity-bar-inner { padding-inline: var(--space-2); gap: var(--space-1); } .identity-bar-inner > .menu-toggle { display: flex; } }

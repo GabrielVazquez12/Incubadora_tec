@@ -17,8 +17,17 @@ export default function Navigation({ home, items, account, publicSite = false })
   useEffect(() => { setOpen(false); setExpanded(null); }, [location.pathname, location.search]);
   useEffect(() => {
     if (open && !dialog.current.open) dialog.current.showModal();
-    if (!open && dialog.current.open) { dialog.current.close(); trigger.current?.focus(); }
+    if (!open && dialog.current.open) {
+      dialog.current.close();
+      if (getComputedStyle(trigger.current).display !== 'none') trigger.current.focus();
+      else header.current?.querySelector('.brand-home')?.focus();
+    }
   }, [open]);
+  useEffect(() => {
+    const resize = () => { if (getComputedStyle(trigger.current).display === 'none') setOpen(false); };
+    window.addEventListener('resize', resize);
+    return () => window.removeEventListener('resize', resize);
+  }, []);
   useEffect(() => {
     if (!expanded) return;
     dropdown.current?.querySelector('a')?.focus();
@@ -40,12 +49,12 @@ export default function Navigation({ home, items, account, publicSite = false })
     const rect = event.currentTarget.getBoundingClientRect();
     setExpanded({ ...item, left: Math.max(8, Math.min(rect.left, window.innerWidth - 288)), top: rect.bottom + 8 });
   }
-  const link = (item, mobile = false) => <NavLink key={item.to} to={item.to} end={item.end} className={item.accent ? 'innovation-link' : undefined} onClick={() => { if (mobile) setOpen(false); setExpanded(null); }}>{item.label}{item.accent && <Icon name="external" />}{item.description && <span className="sr-only">{item.description}</span>}</NavLink>;
+  const link = (item, mobile = false) => <NavLink key={item.to} to={item.to} end={item.end} aria-label={item.description ? `${item.label}. ${item.description}` : undefined} className={item.accent ? 'innovation-link' : undefined} onClick={() => { if (mobile) setOpen(false); setExpanded(null); }}>{item.label}{item.accent && <Icon name="external" />}</NavLink>;
 
   return <header ref={header} className={`enlaces-header ${publicSite ? 'public-header' : ''}`}>
     <div className="identity-bar"><div className="identity-bar-inner"><NavLink className="brand-home" to={home} aria-label="Enlaces Institucionales ITS, inicio"><InstitutionalBrand /></NavLink><div className="desktop-account">{account}</div><button ref={trigger} className="menu-toggle" type="button" aria-expanded={open} aria-controls={id} aria-haspopup="dialog" onClick={() => setOpen(true)}><Icon name="menu" /><span className="sr-only">Abrir menú principal</span></button></div></div>
     <nav className="desktop-navigation" aria-label="Navegación principal"><div className="navigation-scroll" onScroll={() => setExpanded(null)}>{items.map(item => <div className={`navigation-item ${item.accent ? 'navigation-last' : ''}`} key={item.to}>{link(item)}{item.children?.length > 0 && <button type="button" className="submenu-toggle" aria-label={`Mostrar opciones de ${item.label}`} aria-expanded={expanded?.label === item.label} aria-controls={`${id}-submenu`} onClick={event => toggle(event, item)} onKeyDown={event => { if (event.key === 'ArrowDown') { event.preventDefault(); toggle(event, item); } }}><Icon name="chevron" /></button>}</div>)}</div></nav>
-    {expanded && <nav ref={dropdown} id={`${id}-submenu`} className="navigation-dropdown" style={{ left: expanded.left, top: expanded.top }} aria-label={`Opciones de ${expanded.label}`}>{expanded.children.map(item => link(item))}</nav>}
+    <nav ref={dropdown} id={`${id}-submenu`} hidden={!expanded} className="navigation-dropdown" style={expanded ? { left: expanded.left, top: expanded.top } : undefined} aria-label={expanded ? `Opciones de ${expanded.label}` : 'Opciones adicionales'}>{expanded?.children.map(item => link(item))}</nav>
     <dialog ref={dialog} id={id} className="mobile-menu" aria-labelledby={`${id}-title`} onCancel={event => { event.preventDefault(); setOpen(false); }} onClose={() => setOpen(false)}>
       <div className="mobile-menu-heading"><h2 id={`${id}-title`}>Menú principal</h2><button type="button" className="menu-toggle" onClick={() => setOpen(false)} aria-label="Cerrar menú principal"><Icon name="close" /></button></div>
       <div className="mobile-account">{account}</div>

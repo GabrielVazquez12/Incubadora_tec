@@ -83,3 +83,7 @@ Validación de integración:
 - `git diff --check`: aprobado. No hay linter, formateador ni comprobador TypeScript configurados. No se ejecutaron pruebas backend porque no se modificó. No se repitió Lighthouse para la integración.
 
 Cambios guardados localmente, sin commit, push ni despliegue de este rediseño. Pendiente confirmar edificio, horarios y otras sedes de Vinculación antes de añadirlos.
+
+## Publicación completada
+
+El estado local descrito en las etapas de revisión anteriores queda actualizado: A fue integrada, guardada en el commit `224db78`, enviada al remoto `destino` y desplegada en AWS con la imagen `editorial-a-224db78`. CloudFormation UPDATE_COMPLETE y ECS revisión 16 COMPLETED. Chrome sobre producción y comprobaciones HTTP aprobados. Detalles, evidencias y reversión: [PUBLICACION_DISENO_A.md](../PUBLICACION_DISENO_A.md). El comparador conserva ambas propuestas como documentos de diseño; el portal utiliza únicamente la portada A integrada en React.

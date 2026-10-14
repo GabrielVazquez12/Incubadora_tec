@@ -41,6 +41,17 @@ class MigracionesTest(unittest.TestCase):
             with engine.connect() as connection:
                 self.assertEqual(compare_metadata(MigrationContext.configure(connection), Base.metadata), [])
             with Session(engine) as session:
+                from app.models.innovatec import ConvocatoriaInnovaTec
+                call = ConvocatoriaInnovaTec(anio=2026, datos={})
+                session.add(call)
+                session.commit()
+                with self.assertRaises(subprocess.CalledProcessError):
+                    migrate('downgrade', '3a608b5c8533')
+                self.assertEqual(session.scalar(text('SELECT count(*) FROM convocatorias_innovatec')), 1)
+                self.assertEqual(session.scalar(text('SELECT version_num FROM alembic_version')), 'bc36a33dcdcb')
+                # Only this synthetic record is removed to test the empty-table rollback below.
+                session.delete(call)
+                session.commit()
                 user = Usuario(nombre="Prueba", correo="prueba@example.test", password_hash="test", rol=RolUsuario.estudiante)
                 project = Proyecto(nombre="Prueba", propietario=user)
                 session.add(project)

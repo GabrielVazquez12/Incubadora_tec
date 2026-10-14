@@ -83,6 +83,11 @@ async function browser() {
     },
     async fill(selector, value) {
       await evaluate(`(() => { const input = document.querySelector(${JSON.stringify(selector)}); input.focus(); input.select(); })()`);
+      // Email inputs do not consistently support the selection API. Use the
+      // native select-all shortcut, as a user would, before replacing text.
+      const selectAll = { key: 'a', code: 'KeyA', windowsVirtualKeyCode: 65, nativeVirtualKeyCode: 65, modifiers: 2 };
+      await call('Input.dispatchKeyEvent', { ...selectAll, type: 'keyDown' });
+      await call('Input.dispatchKeyEvent', { ...selectAll, type: 'keyUp' });
       await call("Input.insertText", { text: value });
     },
     errors: () => runtimeErrors,

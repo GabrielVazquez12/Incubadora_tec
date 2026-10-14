@@ -1,4 +1,4 @@
-param([int]$Port=8091,[switch]$SkipBuild)
+param([int]$Port=8091,[switch]$SkipBuild,[switch]$InnovaTec,[switch]$OnlyInnovaTec)
 $ErrorActionPreference='Stop'
 $repoRoot=Split-Path -Parent $PSScriptRoot
 Set-Location $repoRoot
@@ -52,10 +52,16 @@ try {
   if($LASTEXITCODE -ne 0){throw 'No se pudo preparar la cuenta temporal de coordinación.'}
   $account | ConvertTo-Json | Set-Content -LiteralPath $credentialFile
   $env:TEST_PORTAL_URL=$base;$env:TEST_DESIGN_ADMIN=$credentialFile;$env:TEST_DESIGN_ARTIFACTS=$artifacts
-  node frontend/scripts/design-browser.cjs
-  if($LASTEXITCODE -ne 0){throw 'Falló la prueba de diseño en Chrome.'}
-  npm run test:browser --prefix frontend
-  if($LASTEXITCODE -ne 0){throw 'Falló la regresión de formularios en Chrome.'}
+  if(-not $OnlyInnovaTec) {
+    node frontend/scripts/design-browser.cjs
+    if($LASTEXITCODE -ne 0){throw 'Falló la prueba de diseño en Chrome.'}
+    npm run test:browser --prefix frontend
+    if($LASTEXITCODE -ne 0){throw 'Falló la regresión de formularios en Chrome.'}
+  }
+  if($InnovaTec -or $OnlyInnovaTec) {
+    node frontend/scripts/innovatec-browser.cjs
+    if($LASTEXITCODE -ne 0){throw 'Falló el flujo InnovaTec en Chrome.'}
+  }
   Write-Host "Verificación aprobada. Capturas: $artifacts"
 } finally {
   $env:TEST_PORTAL_URL=$previousUrl;$env:TEST_DESIGN_ADMIN=$previousAdmin;$env:TEST_DESIGN_ARTIFACTS=$previousArtifacts

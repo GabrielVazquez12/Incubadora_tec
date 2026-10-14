@@ -182,6 +182,140 @@ class PortalTest(unittest.TestCase):
         self.assertEqual(self.request("GET", download, token=token, binary=True), b"%PDF-1.4 document")
         self.assertEqual(self.request("GET", "/portal/state", token=intruder)["data"]["documents"], [])
 
+    def test_innovatec_equipment_documents_states_and_referral(self):
+        from app.modules.compartido.services import today
+        from app.modules.compartido.mutations import INNOVATION_CATALOG
+        owner = self.create_user('innova_owner')
+        self.create_user('innova_intruder')
+        token, intruder = self.login('innova_owner@example.com'), self.login('innova_intruder@example.com')
+        coordinator = self.login('admin@example.com')
+        key, team_id = str(uuid4()), str(uuid4())
+        category = INNOVATION_CATALOG['certamen']['items'][0][0]
+        day = today()
+        call = {'anio': day.year, 'titulo': 'Convocatoria temporal', 'descripcion': 'Datos sintéticos para probar el proceso local.', 'apertura': (day - timedelta(days=1)).isoformat(), 'cierre': (day + timedelta(days=7)).isoformat(), 'categorias': [category], 'requisitos': ['Ficha de equipo'], 'aviso_privacidad': 'Aviso sintético para pruebas; no es un aviso institucional real.', 'aviso_aprobado': True, 'publicada': True}
+        self.request('PUT', f'/portal/innovatec/convocatorias/{key}', call, token, status=403)
+        self.request('PUT', f'/portal/innovatec/convocatorias/{key}', {**call, 'aviso_aprobado': False}, coordinator, status=422)
+        self.request('PUT', f'/portal/innovatec/convocatorias/{key}', {**call, 'apertura': True}, coordinator, status=422)
+        saved_call = self.request('PUT', f'/portal/innovatec/convocatorias/{key}', call, coordinator)
+        self.assertEqual(self.request('GET', '/public/innovatec/convocatorias')[0]['id'], key)
+        body = {'id': team_id, 'convocatoria_id': key, 'nombre': 'Proyecto InnovaTec temporal', 'equipo': 'Equipo temporal', 'descripcion': 'Propuesta de prueba con Unicode: innovación.', 'categoria': category, 'acepto_privacidad': True, 'version_convocatoria': saved_call['version'], 'integrantes': [{'nombre': 'Alumna de prueba', 'correo': 'innova_owner@example.com', 'carrera': 'Carrera de prueba', 'semestre': 4, 'tipo': 'participante'}, {'nombre': 'Docente de prueba', 'correo': 'innova_advisor@example.com', 'tipo': 'asesor'}]}
+        self.request('POST', '/portal/innovatec/equipos', body, status=401)
+        self.request('POST', '/portal/innovatec/equipos', {**body, 'estado': 'acreditado'}, token, status=422)
+        self.request('POST', '/portal/innovatec/equipos', {**body, 'acepto_privacidad': 'false'}, token, status=422)
+        self.request('POST', '/portal/innovatec/equipos', {**body, 'integrantes': [{**body['integrantes'][0], 'semestre': '4'}, body['integrantes'][1]]}, token, status=422)
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            registered = list(pool.map(lambda _: self.request('POST', '/portal/innovatec/equipos', body, token, status=201), range(2)))
+        team = registered[0]
+        self.assertEqual(registered[0]['folio'], registered[1]['folio'])
+        self.assertEqual(self.request('GET', '/portal/innovatec/equipos', token=token)['total'], 1)
+        self.assertEqual(self.request('GET', '/portal/innovatec/equipos', token=intruder)['items'], [])
+        self.request('GET', f'/portal/innovatec/equipos/{team_id}', token=intruder, status=403)
+        self.request('POST', f'/portal/innovatec/equipos/{team_id}/canalizar', token=token, status=403)
+        self.request('POST', f'/portal/innovatec/equipos/{team_id}/canalizar', token=coordinator, status=409)
+        self.request('POST', f'/portal/innovatec/equipos/{team_id}/estado', {'estado': 'acreditado', 'version': team['version'], 'motivo': 'Intento de salto'}, coordinator, status=409)
+        self.request('POST', f'/portal/innovatec/equipos/{team_id}/estado', {'estado': 'documentacion_recibida', 'version': team['version'], 'motivo': 'Recibir documentación'}, token, status=403)
+        self.request('POST', f'/portal/innovatec/equipos/{team_id}/estado', {'estado': 'documentacion_recibida', 'version': team['version'], 'motivo': 'Recibir documentación'}, coordinator, status=422)
+        proposal = self.request('GET', '/portal/state', token=token)['data']['innovation'][0]
+        self.assertEqual(proposal['equipo_id'], team_id)
+        self.request('PUT', f"/portal/innovation/{proposal['id']}", {**proposal, 'estatus_anterior': proposal['estatus'], 'nombre': 'Cambio que evita el expediente'}, token, status=409)
+        edited_call = self.request('PUT', f'/portal/innovatec/convocatorias/{key}', {**call, 'requisitos': ['Otro requisito'], 'version': saved_call['version']}, coordinator)
+        self.assertEqual(self.request('GET', f'/portal/innovatec/equipos/{team_id}', token=token)['requisitos'], ['Ficha de equipo'])
+        self.request('PUT', f'/portal/innovatec/convocatorias/{key}', {**call, 'version': saved_call['version']}, coordinator, status=409)
+        self.request('PUT', f'/portal/innovatec/convocatorias/{key}', {**call, 'anio': day.year + 1, 'version': edited_call['version']}, coordinator, status=409)
+        edit = {**body, 'innovacion_id': team['innovacion_id'], 'version': team['version'], 'descripcion': 'Descripción corregida por su responsable.', 'integrantes': [{**body['integrantes'][0], 'semestre': 5}, {**body['integrantes'][1], 'correo': 'corrected_advisor@example.com'}]}
+        self.request('PUT', f'/portal/innovatec/equipos/{team_id}', edit, intruder, status=403)
+        self.request('PUT', f'/portal/innovatec/equipos/{team_id}', {**edit, 'convocatoria_id': str(uuid4())}, token, status=422)
+        team = self.request('PUT', f'/portal/innovatec/equipos/{team_id}', edit, token)
+        self.request('PUT', f'/portal/innovatec/equipos/{team_id}', edit, token, status=409)
+        self.assertEqual(len(team['integrantes']), 2)
+        self.assertEqual(team['propuesta']['descripcion'], edit['descripcion'])
+        self.assertEqual(team['propuesta']['estatus'], 'En revisión')
+        self.assertEqual(team['convocatoria']['version_aceptada'], saved_call['version'])
+
+        def upload(path, actor, fields, content=b'%PDF-1.4 document', name='ficha.pdf', expected=201):
+            boundary = 'innova-' + uuid4().hex
+            parts = [(f'--{boundary}\r\nContent-Disposition: form-data; name="{k}"\r\n\r\n{v}\r\n').encode() for k, v in fields.items()]
+            parts.append((f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="{name}"\r\nContent-Type: application/octet-stream\r\n\r\n').encode() + content + f'\r\n--{boundary}--\r\n'.encode())
+            req = Request(self.base + path, data=b''.join(parts), headers={'Authorization': 'Bearer ' + actor, 'Content-Type': f'multipart/form-data; boundary={boundary}'})
+            try:
+                response = urlopen(req, timeout=20)
+            except HTTPError as error:
+                response = error
+            value = response.read()
+            self.assertEqual(response.status, expected, value)
+            return json.loads(value)
+
+        route = f'/portal/innovatec/equipos/{team_id}/documentos'
+        upload(route, intruder, {'requisito': 'Ficha de equipo'}, expected=403)
+        upload(route, token, {'requisito': 'Otro requisito'}, expected=422)
+        upload(route, token, {'requisito': 'Ficha de equipo'}, content=b'not a PDF', expected=422)
+        team = upload(route, token, {'requisito': 'Ficha de equipo'})
+        first = team['documentos'][0]['id']
+        self.request('GET', f'/portal/innovatec/documentos/{first}', token=intruder, status=403)
+        self.assertEqual(self.request('GET', f'/portal/innovatec/documentos/{first}', token=token, binary=True), b'%PDF-1.4 document')
+        self.assertNotIn('bucket', team['documentos'][0])
+        self.assertNotIn('contenido', team['documentos'][0])
+        self.request('POST', f'/portal/innovatec/documentos/{first}/revision', {'estado': 'observado', 'estado_anterior': 'recibido', 'comentarios': ' '}, coordinator, status=422)
+        team = self.request('POST', f'/portal/innovatec/documentos/{first}/revision', {'estado': 'observado', 'estado_anterior': 'recibido', 'comentarios': 'Adjunta versión firmada.'}, coordinator)
+        team = upload(route, token, {'requisito': 'Ficha de equipo'}, content=b'%PDF-1.4 corrected')
+        self.assertEqual(len(team['documentos']), 2)
+        current = next(d for d in team['documentos'] if d['vigente'])
+        self.assertNotEqual(current['id'], first)
+        team = self.request('POST', f'/portal/innovatec/equipos/{team_id}/estado', {'estado': 'documentacion_recibida', 'version': team['version'], 'motivo': 'Recibidos'}, coordinator)
+        self.request('POST', f'/portal/innovatec/equipos/{team_id}/estado', {'estado': 'etapa_local', 'version': team['version'], 'motivo': 'Admitir'}, coordinator, status=422)
+        proposal = next(p for p in self.request('GET', '/portal/state', token=coordinator)['data']['innovation'] if p['equipo_id'] == team_id)
+        self.request('PUT', f"/portal/innovation/{proposal['id']}", {**proposal, 'estatus_anterior': proposal['estatus'], 'estatus': 'Aprobada'}, coordinator)
+        team = self.request('POST', f"/portal/innovatec/documentos/{current['id']}/revision", {'estado': 'aprobado', 'estado_anterior': 'recibido', 'comentarios': 'Verificado'}, coordinator)
+        stale = team['version']
+        team = self.request('POST', f'/portal/innovatec/equipos/{team_id}/estado', {'estado': 'etapa_local', 'version': team['version'], 'motivo': 'Admitido a etapa local'}, coordinator)
+        self.request('POST', f'/portal/innovatec/equipos/{team_id}/estado', {'estado': 'acreditado', 'version': stale, 'motivo': 'Resultado'}, coordinator, status=409)
+        team = self.request('POST', f'/portal/innovatec/equipos/{team_id}/estado', {'estado': 'acreditado', 'version': team['version'], 'motivo': 'Resultado de prueba'}, coordinator)
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            referrals = list(pool.map(lambda _: self.request('POST', f'/portal/innovatec/equipos/{team_id}/canalizar', token=coordinator), range(2)))
+        self.assertEqual(referrals[0]['proyecto_id'], referrals[1]['proyecto_id'])
+        project = next(p for p in self.request('GET', '/portal/state', token=token)['data']['projects'] if p['id'] == referrals[0]['proyecto_id'])
+        self.assertEqual(project['nombre'], body['nombre'])
+        self.assertEqual(project['descripcion'], edit['descripcion'])
+        self.assertEqual(project['owner'], owner['id'])
+        member = team['integrantes'][0]
+        delivery = {'estado': 'entregado', 'estado_anterior': 'pendiente', 'fecha': day.isoformat()}
+        self.request('PUT', f"/portal/innovatec/integrantes/{member['id']}/diploma", delivery, token, status=403)
+        self.request('PUT', f"/portal/innovatec/integrantes/{member['id']}/diploma", {**delivery, 'fecha': (day + timedelta(days=1)).isoformat()}, coordinator, status=422)
+        self.request('PUT', f"/portal/innovatec/integrantes/{member['id']}/diploma", delivery, coordinator)
+        self.request('GET', f"/portal/innovatec/integrantes/{member['id']}/diploma.pdf", token=intruder, status=403)
+        diploma_bytes = self.request('GET', f"/portal/innovatec/integrantes/{member['id']}/diploma.pdf", token=token, binary=True)
+        self.assertTrue(diploma_bytes.startswith(b'%PDF-'))
+        self.assertGreater(len(diploma_bytes), 50000)
+        self.request('PUT', f"/portal/innovatec/integrantes/{member['id']}/diploma", delivery, coordinator, status=409)
+        self.request('GET', '/portal/innovatec/diplomas', token=token, status=403)
+        self.assertEqual(self.request('GET', '/portal/innovatec/diplomas?estado=entregado', token=coordinator)['total'], 1)
+        file = upload(f'/portal/innovatec/convocatorias/{key}/archivos', coordinator, {'tipo': 'manual', 'version_manual': 'prueba-1'})
+        self.assertEqual(self.request('GET', f"/public/innovatec/archivos/{file['id']}", binary=True), b'%PDF-1.4 document')
+        team = self.request('GET', f'/portal/innovatec/equipos/{team_id}', token=coordinator)
+        logistics = {'version': team['version'], 'etapa': 'regional', 'fecha': (day + timedelta(days=2)).isoformat(), 'sede': 'Sede temporal', 'responsables': 'Coordinación de prueba', 'transporte': 'Gestión temporal', 'hospedaje': 'Gestión temporal', 'gestiones': [{'nombre': 'Traslado', 'responsable': 'Responsable temporal', 'estado': 'pendiente'}]}
+        self.request('PUT', f'/portal/innovatec/equipos/{team_id}/seguimiento', logistics, token, status=403)
+        team = self.request('PUT', f'/portal/innovatec/equipos/{team_id}/seguimiento', logistics, coordinator)
+        self.request('PUT', f'/portal/innovatec/equipos/{team_id}/seguimiento', logistics, coordinator, status=409)
+        team = self.request('POST', f'/portal/innovatec/equipos/{team_id}/estado', {'estado': 'etapa_regional', 'version': team['version'], 'motivo': 'Continuidad regional de prueba'}, coordinator)
+        self.assertEqual(team['propuesta']['etapa'], 'Regional')
+        self.assertEqual(self.request('GET', '/portal/innovatec/equipos?etapa=Regional', token=token)['total'], 1)
+        self.assertEqual(self.request('GET', '/portal/innovatec/equipos?etapa=Local', token=token)['total'], 0)
+        self.request('GET', '/portal/innovatec/equipos?etapa=ADMIN', token=token, status=422)
+        event = {'nombre': 'Plática temporal InnovaTec', 'descripcion': 'Sesión exclusiva de prueba.', 'tipo': 'Taller', 'fecha': (day + timedelta(days=5)).isoformat(), 'hora': '10:00', 'cupo': 10, 'precio': 0, 'modalidad': 'Presencial', 'estatus': 'Activo'}
+        talk_id = str(uuid4())
+        talk = {'evento': event, 'publico': 'alumnos', 'contenido': 'Qué es InnovaTec, beneficios y proceso.', 'sede': 'Sede temporal'}
+        self.request('PUT', f'/portal/innovatec/platicas/{talk_id}', talk, token, status=403)
+        saved_talk = self.request('PUT', f'/portal/innovatec/platicas/{talk_id}', talk, coordinator)
+        self.assertTrue(any(p['id'] == talk_id for p in self.request('GET', '/public/innovatec/platicas')))
+        registration = self.request('POST', f"/portal/events/{saved_talk['evento_id']}/register", {}, token=token)
+        self.assertTrue(registration['confirmed'])
+        self.assertTrue(any(r['event'] == saved_talk['evento_id'] for r in self.request('GET', '/portal/state', token=token)['data']['registrations']))
+        existing_event_id = str(uuid4())
+        self.request('PUT', f'/portal/events/{existing_event_id}', {**event, 'nombre': 'Evento existente para plática'}, coordinator)
+        reused = self.request('PUT', f'/portal/innovatec/platicas/{uuid4()}', {**talk, 'evento_id': existing_event_id, 'evento': {**event, 'nombre': 'Evento existente para plática'}}, coordinator)
+        self.assertEqual(reused['evento_id'], existing_event_id)
+        self.request('PUT', f'/portal/innovatec/platicas/{uuid4()}', {**talk, 'evento_id': existing_event_id}, coordinator, status=409)
+
     def create_user(self, alias, role="estudiante"):
         return self.request("POST", "/auth/registro", {"nombre": alias, "correo": f"{alias}@example.com", "password": "TestPass2026!", "rol": role}, status=201)
 

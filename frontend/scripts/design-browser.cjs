@@ -7,6 +7,16 @@ const { browser } = require('./browser-helper.cjs');
 async function main() {
   const base = new URL(process.env.TEST_PORTAL_URL || 'http://127.0.0.1:8089');
   assert.ok(['localhost', '127.0.0.1'].includes(base.hostname), 'Use an isolated local test portal.');
+  for (const [asset, mediaType] of [
+    ['/brand/enlaces-institucionales.jpeg', 'image/jpeg'],
+    ['/brand/enlaces-institucionales-400.webp', 'image/webp'],
+    ['/brand/enlaces-monograma-144.png', 'image/png'],
+  ]) {
+    const response = await fetch(new URL(asset, base));
+    assert.equal(response.status, 200, `Official brand asset exists: ${asset}`);
+    assert.equal(response.headers.get('content-type'), mediaType, `Correct MIME: ${asset}`);
+    assert.ok((await response.arrayBuffer()).byteLength > 0, `Nonempty asset: ${asset}`);
+  }
   const artifacts = path.resolve(process.env.TEST_DESIGN_ARTIFACTS || path.resolve(__dirname, '../../.local/phase-a-screenshots'));
   await fs.mkdir(artifacts, { recursive: true });
   const page = await browser();

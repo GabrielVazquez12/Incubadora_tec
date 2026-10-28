@@ -44,6 +44,10 @@ def save_projects(db, user, key, values, row, payload, new, collection):
     row.creado_en = datetime.combine(values.pop("fecha"), time())
     status = values.pop("estatus")
     if admin(user):
+        from app.models import ExpedienteIncubadora
+        institutional = db.scalar(select(ExpedienteIncubadora).where(ExpedienteIncubadora.proyecto_id == key))
+        if institutional and status == 'Completado' and institutional.estado not in ('concluido', 'formalizado'):
+            fail('Completa el cierre institucional en el expediente antes de marcar el proyecto como completado.', 409)
         history(db, row, user, status, values["comentario"])
         if status == "Completado":
             values["progreso"] = 100
@@ -60,6 +64,15 @@ def save_milestones(db, user, key, values, row, payload, new, collection):
     if row and row.project != values["project"]:
         fail("No se puede mover un registro a otro proyecto.")
     project = project_access(db, user, values["project"])
+    from app.models import ExpedienteIncubadora
+    from app.modules.compartido.services import today
+    from app.modules.innovacion.services import audit
+    institutional = db.scalar(select(ExpedienteIncubadora).where(ExpedienteIncubadora.proyecto_id == project.id).with_for_update())
+    if institutional:
+        if institutional.estado in ('pausado', 'concluido', 'formalizado'):
+            fail('Coordina la reactivación del expediente antes de modificar avances o tareas.', 409)
+        institutional.ultimo_movimiento = today()
+        audit(institutional, user, 'avance_anterior', registro_id=str(key), coleccion=collection)
     if collection == "milestones":
         progress = values.pop("progreso")
         if project.estatus == "Completado" and progress != 100:

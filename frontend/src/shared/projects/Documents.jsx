@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { usePortal } from '../portal/PortalContext.jsx';
 import { usePortalRoute } from '../portal/PortalLayout.jsx';
-import { Badge, Field, Modal, Panel, Table, TextArea, formValues } from '../portal/ui.jsx';
+import { Form, Badge, Field, Modal, Panel, Table, TextArea, formValues } from '../portal/ui.jsx';
 import { dateLabel } from '../portal/data.js';
 
 export function Documents({ project }) {
@@ -53,18 +53,18 @@ export function Documents({ project }) {
     {modal && <Modal title={modal.kind === 'upload' ? modal.document ? 'Enviar corrección' : 'Subir documento' : modal.kind === 'review' ? 'Revisar documento' : 'Historial del documento'} onClose={() => !busy && setModal(null)}>
       {modal.document && <p><strong>{modal.document.nombre}</strong></p>}
       {error && <p role="alert" className="error">{error}</p>}
-      {modal.kind === 'upload' && <form className="form-stack" onSubmit={upload}>
+      {modal.kind === 'upload' && <Form className="form-stack" onSubmit={upload}>
         {modal.document?.observaciones && <p className="info-box">{modal.document.observaciones}</p>}
         <Field label="Archivo PDF o Word (máximo 5 MB)" name="file" type="file" accept=".pdf,.doc,.docx" required disabled={busy} />
         <button className="button" disabled={busy}>{busy ? 'Enviando…' : 'Enviar a revisión'}</button>
-      </form>}
-      {modal.kind === 'review' && <form className="form-stack" onSubmit={review}>
+      </Form>}
+      {modal.kind === 'review' && <Form className="form-stack" onSubmit={review}>
         <Field label="Resultado" name="estatus" defaultValue={modal.document.estatus === 'Aprobado' ? 'Correcciones solicitadas' : 'Aprobado'} disabled={busy}>
           <option>Aprobado</option><option>Correcciones solicitadas</option>
         </Field>
         <TextArea label="Observaciones (obligatorias al solicitar correcciones)" name="observaciones" maxLength={2000} disabled={busy} />
         <button className="button" disabled={busy}>Guardar revisión</button>
-      </form>}
+      </Form>}
       {modal.kind === 'history' && <Table headings={['Fecha', 'Estado', 'Responsable', 'Observaciones']} empty={!modal.document.historial?.length}>
         {(modal.document.historial || []).map((h, i) => <tr key={i}><td>{dateLabel(h.fecha)}</td><td>{h.estatus}</td><td>{h.nombre}</td><td>{h.observaciones}</td></tr>)}
       </Table>}

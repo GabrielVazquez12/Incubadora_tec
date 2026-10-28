@@ -16,6 +16,13 @@ from app.modules.compartido.services import today, has_started, fail, require_ad
 
 def save_users(db, user, key, values, row, payload, new, collection):
     require_admin(user)
+    from app.access import profile, require_manager
+    if row and profile(db, row) == 'asesor' and values['rol'] == 'admin':
+        fail('Revoca primero el perfil Asesor antes de cambiar el rol a Coordinador.', 409)
+    if row and profile(db, row) == 'administrador':
+        require_manager(db, user)
+        if values['rol'] != 'admin':
+            fail('Revoca primero el perfil Administrador conservando otro administrador activo.', 409)
     if key == user.id and values["rol"] != "admin":
         fail("No puedes quitarte tu propio acceso de coordinador.")
     if row and values["rol"] != "estudiante" and (db.scalar(select(Proyecto.id).where(Proyecto.usuario_id == key).limit(1)) or db.scalar(select(IntegranteProyecto.usuario_id).where(IntegranteProyecto.usuario_id == key).limit(1))):
@@ -29,6 +36,10 @@ def save_users(db, user, key, values, row, payload, new, collection):
     if new and not password:
         fail("Indica una contraseña inicial de al menos 8 caracteres.")
     values["correo"] = values["correo"].lower()
+    if db.scalar(select(Usuario.id).where(func.lower(func.trim(Usuario.correo)) == values["correo"], Usuario.id != key).limit(1)):
+        fail("Ese correo ya está registrado.", 409)
+    if row and (password or values["rol"] != row.rol.value):
+        values["auth_version"] = row.auth_version + 1
     values["rol"] = RolUsuario(values["rol"])
     if password:
         values["password_hash"] = hash_password(password)

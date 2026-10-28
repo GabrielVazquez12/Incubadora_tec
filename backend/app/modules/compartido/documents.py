@@ -10,6 +10,7 @@ from app.auth.security import get_current_user
 from app.database import get_db
 from app.document_storage import store_bytes, read_bytes
 from app.document_validation import MAX_DOCUMENT_BYTES, validate_document
+from app.schemas.validation import RequestInput
 from app.models import Documento, Usuario
 from app.modules.compartido.services import project_access, require_admin, record, fail, serialized, registration_event
 
@@ -50,7 +51,7 @@ def upload_document(key: UUID, file: UploadFile = File(...), reemplaza_id: UUID 
     return {"id": str(doc.id)}
 
 
-class DocumentReview(BaseModel):
+class DocumentReview(RequestInput):
     estatus: Literal["Aprobado", "Correcciones solicitadas"]
     estatus_anterior: Literal["Pendiente", "Aprobado", "Correcciones solicitadas"]
     observaciones: str = Field(default="", max_length=2000)

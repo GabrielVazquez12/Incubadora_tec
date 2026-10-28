@@ -3,7 +3,8 @@ from typing import Annotated, Literal
 from uuid import UUID
 from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, StringConstraints, model_validator
+from pydantic import StrictBool, StringConstraints, model_validator
+from app.schemas.validation import RequestInput
 from sqlalchemy import select, or_, and_
 from sqlalchemy.orm import Session
 from app.database import get_db
@@ -15,15 +16,15 @@ router = APIRouter(tags=['boletin'])
 admin = Depends(require_role(RolUsuario.admin))
 
 
-class PublicationInput(BaseModel):
+class PublicationInput(RequestInput):
     titulo: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=160)]
     resumen: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
     contenido: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=12000)]
     categoria: Literal['Noticia', 'Convocatoria', 'Aviso'] = 'Noticia'
     fecha: date
     vence: date | None = None
-    publicada: bool = False
-    destacada: bool = False
+    publicada: StrictBool = False
+    destacada: StrictBool = False
 
     @model_validator(mode='after')
     def dates(self):

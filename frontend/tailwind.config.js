@@ -5,15 +5,15 @@ export default {
     extend: {
       colors: {
         guinda: {
-          DEFAULT: "#6E1E39",
-          dark: "#3F0F21",
+          DEFAULT: "var(--color-primary)",
+          dark: "var(--color-primary-dark)",
         },
-        institucional: "#1F4E79",
-        appbg: "#F6F5F7",
+        institucional: "var(--color-navy)",
+        appbg: "var(--color-paper)",
       },
       fontFamily: {
-        display: ["Cambria", "Georgia", "serif"],
-        body: ["Calibri", "Segoe UI", "sans-serif"],
+        display: ["var(--font-display)"],
+        body: ["var(--font-body)"],
       },
     },
   },

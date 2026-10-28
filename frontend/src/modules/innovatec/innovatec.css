@@ -1,0 +1,13 @@
+.innova-members { min-inline-size: 0; border: var(--border-width) solid var(--color-border); border-radius: var(--radius-medium); padding: var(--space-2); margin: 0; }
+.innova-members legend { max-inline-size: 100%; white-space: normal; overflow-wrap: anywhere; }
+.innova-members .panel { padding: var(--space-2); min-inline-size: 0; }
+.innova-members .field { min-inline-size: 0; }
+.public-information .form-stack { min-inline-size: 0; }
+.public-information nav[aria-label="Opciones InnovaTec"] { flex-wrap: wrap; gap: var(--space-2); }
+.innovatec-public .panel { min-inline-size: 0; overflow-wrap: anywhere; }
+.innovatec-workspace { min-inline-size: 0; }
+.innovatec-workspace fieldset { min-inline-size: 0; max-inline-size: 100%; }
+.innovatec-workspace .row { flex-wrap: wrap; }
+.innovatec-workspace .row > .field { flex: 1 1 160px; min-inline-size: 0; max-inline-size: 100%; }
+.innovatec-workspace select { max-inline-size: 100%; }
+.innovatec-workspace .panel { min-inline-size: 0; overflow-wrap: anywhere; }

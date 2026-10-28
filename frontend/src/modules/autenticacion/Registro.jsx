@@ -1,8 +1,9 @@
-import InstitutionalBrand from '../../shared/InstitutionalBrand.jsx';
+import BrandImage from '../../shared/BrandImage.jsx';
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import api from "../../shared/api/client.js";
 import { errorMessage } from "../../shared/portal/PortalContext.jsx";
+import { Form } from '../../shared/portal/ui.jsx';
 
 const TIPOS_REGISTRO = [
   { valor: "estudiante", etiqueta: "Emprendedor (estudiante ITS)" },
@@ -40,12 +41,14 @@ export default function Registro() {
 
   return (
     <div className="auth-page min-h-screen bg-appbg flex items-center justify-center px-4 font-body">
-      <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <Link to="/" aria-label="Volver al inicio"><InstitutionalBrand /></Link>
+      <div className="auth-shell">
+        <div className="auth-identity">
+          <BrandImage priority sizes="(min-width: 768px) 25vw, 46vw" />
+          <p className="brand-motto">Conectando ideas, generando oportunidades</p>
+          <Link className="auth-home" to="/">Volver al inicio</Link>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm p-8">
+        <div className="auth-card">
           <h1 className="font-display text-2xl text-guinda-dark mb-6">
             Crear cuenta
           </h1>
@@ -68,7 +71,7 @@ export default function Registro() {
             ))}
           </div>
 
-          <form onSubmit={manejarEnvio} className="space-y-5">
+          <Form onSubmit={manejarEnvio} busy={cargando} className="space-y-5">
             <div>
               <label htmlFor="nombre" className="block text-sm text-gray-700 mb-1">
                 Nombre completo
@@ -76,6 +79,8 @@ export default function Registro() {
               <input
                 id="nombre"
                 type="text"
+                maxLength={160}
+                autoComplete="name"
                 required
                 value={nombre}
                 onChange={(e) => setNombre(e.target.value)}
@@ -90,6 +95,8 @@ export default function Registro() {
               <input
                 id="correo"
                 type="email"
+                maxLength={254}
+                autoComplete="email"
                 required
                 placeholder="nombre@correo.com"
                 value={correo}
@@ -105,6 +112,8 @@ export default function Registro() {
               <input
                 id="password"
                 type="password"
+                maxLength={72}
+                autoComplete="new-password"
                 required
                 minLength={8}
                 placeholder="Mínimo 8 caracteres"
@@ -127,7 +136,7 @@ export default function Registro() {
             >
               {cargando ? "Creando cuenta..." : "Crear cuenta"}
             </button>
-          </form>
+          </Form>
 
           <p className="text-center text-sm text-gray-600 mt-6">
             ¿Ya tienes cuenta?{" "}

@@ -7,6 +7,8 @@ from datetime import date, time
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from fastapi import HTTPException
+from app.document_validation import validate_filename, validate_annex
+from app.schemas.validation import valid_text
 
 SPEC = json.loads(Path(__file__).with_name("registration_fields.json").read_text(encoding="utf-8"))
 CATEGORIES = ("convencionales", "discapacitados", "indigenas", "mujeres", "hombres", "total")
@@ -18,7 +20,7 @@ def invalid(message):
 
 def participants(data):
     try:
-        count = int(data.get("identificacion.numero_solicitantes", "1"))
+        count = int(data.get("identificacion.numero_solicitantes") or "1")
     except ValueError:
         invalid("Indica un número entero de solicitantes.")
     if not 1 <= count <= 20:
@@ -50,13 +52,17 @@ def fields(data, administrative=False):
             yield f"revision.{person}.formulario", dict(label="Revisó: formulario de registro", type="text", required=False)
 
 
-def validate_data(data, complete=False, administrative=False):
-    allowed = dict(fields(data, administrative))
+def validate_data(data, complete=False, administrative=False, participant_data=None):
+    allowed = dict(fields(participant_data if participant_data is not None else data, administrative))
     if any(key not in allowed for key in data):
         invalid("El formato contiene campos no reconocidos.")
     clean = {}
     for key, field in allowed.items():
         value = data.get(key, "").strip()
+        try:
+            valid_text(value)
+        except ValueError:
+            invalid(f"Caracteres no válidos: {field['label']}.")
         if len(value) > (5000 if field["type"] == "textarea" else 300):
             invalid(f"Texto demasiado largo: {field['label']}.")
         if complete and field.get("required") and not value:
@@ -69,7 +75,11 @@ def validate_data(data, complete=False, administrative=False):
                 invalid(f"Correo no válido: {field['label']}.")
             if kind in ("date", "time"):
                 try:
-                    (date if kind == "date" else time).fromisoformat(value)
+                    parsed = (date if kind == "date" else time).fromisoformat(value)
+                    if kind == "date" and (len(value) != 10 or key.endswith(".nacimiento") and parsed > date.today()):
+                        raise ValueError()
+                    if kind == "time" and (parsed.tzinfo or parsed.second or parsed.microsecond):
+                        raise ValueError()
                 except ValueError:
                     invalid(f"Fecha u hora no válida: {field['label']}.")
             if kind == "number":
@@ -78,6 +88,8 @@ def validate_data(data, complete=False, administrative=False):
                     if not number.is_finite() or number < 0 or number > 1_000_000_000:
                         raise ValueError()
                     if "ingreso" not in key and number != number.to_integral_value():
+                        raise ValueError()
+                    if "ingreso" in key and number != number.quantize(Decimal("0.01")):
                         raise ValueError()
                 except (InvalidOperation, ValueError):
                     invalid(f"Cantidad no válida: {field['label']}.")
@@ -97,11 +109,14 @@ def validate_data(data, complete=False, administrative=False):
             if Decimal(clean[f"empleos.total.{col}"]) != Decimal(clean[f"empleos.actuales.{col}"]) + Decimal(clean[f"empleos.generar.{col}"]):
                 invalid("El total de puestos debe corresponder a actuales más puestos por generar.")
         for person in participants(clean):
+            total = clean.get(f"{person}.dependientes_total", "")
+            if total and Decimal(total) != Decimal(clean.get(f"{person}.dependientes_consanguineos") or "0") + Decimal(clean.get(f"{person}.dependientes_otros") or "0"):
+                invalid("El total de dependientes debe corresponder a consanguíneos más otros.")
             if clean.get(f"{person}.discapacidad") == "Sí" and not clean.get(f"{person}.especifique"):
                 invalid("Especifica la capacidad diferente del solicitante correspondiente.")
         if len(participants(clean)) > 1 and clean.get("descripcion.motivacion_socio") not in ("Necesidad", "Oportunidad", "Ambas"):
             invalid("Completa la motivación del socio.")
-    return clean
+    return {key: clean[key] for key in data} if administrative else clean
 
 
 def merge_files(data, existing, changes, complete=False):
@@ -114,6 +129,7 @@ def merge_files(data, existing, changes, complete=False):
             result.pop(key, None)
             continue
         name, raw = item.get("name"), item.get("data")
+        validate_filename(name)
         if not isinstance(name, str) or not 1 <= len(name) <= 240 or not isinstance(raw, str) or len(raw) > 3_000_000:
             invalid("Anexo no válido. Máximo 2 MB por archivo.")
         try:
@@ -124,6 +140,7 @@ def merge_files(data, existing, changes, complete=False):
         types = {"pdf": (b"%PDF-", "application/pdf"), "png": (b"\x89PNG\r\n\x1a\n", "image/png"), "jpg": (b"\xff\xd8\xff", "image/jpeg"), "jpeg": (b"\xff\xd8\xff", "image/jpeg")}
         if extension not in types or not content.startswith(types[extension][0]) or not 0 < len(content) <= 2 * 1024 * 1024:
             invalid("Adjunta un PDF, PNG o JPG válido de hasta 2 MB.")
+        validate_annex(extension, content)
         result[key] = dict(name=name, data=base64.b64encode(content).decode(), tipo=types[extension][1], size=len(content))
     if sum(item.get("size", len(item.get("data", "")) * 3 // 4) for item in result.values()) > 20 * 1024 * 1024:
         invalid("Los anexos del registro no deben superar 20 MB en conjunto.")

@@ -117,7 +117,7 @@ def encode(value):
 
 def serialized(row):
     return {c.name: encode(getattr(row, c.name)) for c in row.__table__.columns
-            if c.name not in ("password_hash", "contenido")}
+            if c.name not in ("password_hash", "contenido", "auth_version")}
 
 
 

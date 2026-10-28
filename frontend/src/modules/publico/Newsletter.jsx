@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ImageGallery } from '../../shared/EditorialImages.jsx';
 import { Modal } from '../../shared/portal/ui.jsx';
@@ -19,14 +19,26 @@ export function PublicationCard({ item, featured = false, onRead }) {
   </article>;
 }
 
-export default function Newsletter({ portalBase = '', compact = false }) {
+export default function Newsletter({ portalBase = '', compact = false, defer = false }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(false);
   const [filter, setFilter] = useState('Todo');
   const [search, setSearch] = useState('');
   const [attempt, setAttempt] = useState(0);
   const [params, setParams] = useSearchParams();
+  const section = useRef(null), [near, setNear] = useState(!defer);
+  const enabled = near || Boolean(params.get('noticia'));
   useEffect(() => {
+    if (!defer || near) return;
+    if (typeof IntersectionObserver === 'undefined') { setNear(true); return; }
+    const observer = new IntersectionObserver(entries => {
+      if (entries.some(entry => entry.isIntersecting)) { setNear(true); observer.disconnect(); }
+    }, { rootMargin: '400px' });
+    observer.observe(section.current);
+    return () => observer.disconnect();
+  }, [defer, near]);
+  useEffect(() => {
+    if (!enabled) return;
     const controller = new AbortController();
     async function load() {
       try {
@@ -38,7 +50,7 @@ export default function Newsletter({ portalBase = '', compact = false }) {
     const timer = setInterval(load, 300000);
     window.addEventListener('focus', load);
     return () => { controller.abort(); clearInterval(timer); window.removeEventListener('focus', load); };
-  }, [attempt]);
+  }, [attempt, enabled]);
   const publications = data?.publicaciones || [];
   const query = searchable(search.trim());
   const matches = value => searchable(value).includes(query);
@@ -50,8 +62,8 @@ export default function Newsletter({ portalBase = '', compact = false }) {
   const closeArticle = () => { const next = new URLSearchParams(params); next.delete('noticia'); setParams(next, { replace: true, preventScrollReset: true }); };
   const eventPath = portalBase ? `${portalBase}/eventos` : '/login';
   const showEvents = !compact && (filter === 'Todo' || filter === 'Evento');
-  return <section id="actualidad" className={`newsletter ${portalBase ? 'newsletter-portal' : 'landing-container'} ${compact ? 'newsletter-compact' : ''}`} aria-labelledby="newsletter-title">
-    <header className="news-heading"><div><p className="news-eyebrow">Boletín de la comunidad ITS</p>{compact ? <h2 id="newsletter-title">Entérate de lo que sucede</h2> : <h1 id="newsletter-title">Actualidad de la incubadora</h1>}<p>Noticias, convocatorias y actividades para nuestra comunidad.</p></div><div className="news-heading-actions">{compact ? <Link className="news-read" to={`${portalBase}/boletin`}>Ver todo el boletín →</Link> : <>{data && <small>Actualizado el {new Date(data.actualizado).toLocaleDateString('es-MX', { timeZone: 'America/Mexico_City', day: 'numeric', month: 'long', year: 'numeric' })}</small>}<button type="button" className="news-read" onClick={() => setAttempt(n => n + 1)}>Actualizar noticias ↻</button></>}</div></header>
+  return <section ref={section} onFocusCapture={() => setNear(true)} aria-busy={enabled && !data && !error || undefined} id="actualidad" className={`newsletter ${portalBase ? 'newsletter-portal' : 'landing-container'} ${compact ? 'newsletter-compact' : ''}`} aria-labelledby="newsletter-title">
+    <header className="news-heading"><div><p className="news-eyebrow">Boletín de la comunidad ITS</p>{compact ? <h2 id="newsletter-title">Entérate de lo que sucede</h2> : portalBase ? <h1 id="newsletter-title">Actualidad institucional</h1> : <h2 id="newsletter-title">Actualidad institucional</h2>}<p>Noticias, convocatorias y actividades para nuestra comunidad.</p></div><div className="news-heading-actions">{compact ? <Link className="news-read" to={`${portalBase}/boletin`}>Ver todo el boletín →</Link> : <>{data && <small>Actualizado el {new Date(data.actualizado).toLocaleDateString('es-MX', { timeZone: 'America/Mexico_City', day: 'numeric', month: 'long', year: 'numeric' })}</small>}<button type="button" className="news-read" onClick={() => setAttempt(n => n + 1)}>Actualizar noticias ↻</button></>}</div></header>
     {!compact && <div className="news-tools"><div className="news-filters" role="group" aria-label="Filtrar el boletín">{[['Todo', 'Todo'], ['Noticia', 'Noticias'], ['Convocatoria', 'Convocatorias'], ['Aviso', 'Avisos'], ['Evento', 'Eventos']].map(([value, title]) => <button key={value} type="button" aria-pressed={filter === value} onClick={() => setFilter(value)}>{title}</button>)}</div><label className="news-search"><span>Buscar en el boletín</span><input type="search" value={search} onChange={e => setSearch(e.target.value)} placeholder="Noticia, taller, convocatoria…" /></label></div>}
     {!data && !error && <p className="news-message" role="status">Cargando noticias y agenda…</p>}
     {error && <div className="news-message" role="alert">No pudimos actualizar el boletín.{data && ' Se conserva la última información consultada.'} <button className="news-read" type="button" onClick={() => setAttempt(n => n + 1)}>Reintentar</button></div>}

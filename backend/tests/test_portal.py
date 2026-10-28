@@ -17,7 +17,7 @@ from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 from uuid import UUID, uuid4
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, text, select
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 from app.auth.security import hash_password
@@ -26,6 +26,225 @@ from app.models import Usuario, RolUsuario
 
 
 class PortalTest(unittest.TestCase):
+    def test_difusion_permissions_versions_visibility_and_manual_sends(self):
+        person = self.create_user('outreach_student')
+        student = self.login('outreach_student@example.com')
+        coordinator = self.login('admin@example.com')
+        for collection in ['piezas', 'visitas', 'plantillas', 'preguntas', 'fichas', 'configuracion', 'envios', 'contactos']:
+            self.request('GET', f'/portal/difusion/{collection}', token=student, status=403)
+            self.request('GET', f'/portal/difusion/{collection}', status=401)
+        state = self.request('GET', '/portal/state', token=coordinator)
+        owner = next(u['id'] for u in state['data']['users'] if u['correo'] == 'admin@example.com')
+        key = str(uuid4())
+        template = {'version': 0, 'titulo': 'Orientación de prueba', 'publico': 'alumnos', 'contenido': 'Mensaje sintético original', 'activa': True}
+        self.request('PUT', f'/portal/difusion/plantillas/{key}', template, student, status=403)
+        saved = self.request('PUT', f'/portal/difusion/plantillas/{key}', template, coordinator)
+        self.assertEqual(saved['version'], 1)
+        self.request('PUT', f'/portal/difusion/plantillas/{key}', template, coordinator, status=409)
+        send_key = str(uuid4())
+        send = {'plantilla_id': key, 'destinatario': 'Grupo sintético', 'canal': 'docentes', 'fecha': str(date.today() - timedelta(days=1)), 'responsable_id': owner}
+        original = self.request('POST', f'/portal/difusion/envios/{send_key}', send, coordinator, status=201)
+        self.request('POST', f'/portal/difusion/envios/{send_key}', send, coordinator, status=201)
+        self.request('POST', f'/portal/difusion/envios/{send_key}', dict(send, destinatario='Otro'), coordinator, status=409)
+        self.request('PUT', f'/portal/difusion/plantillas/{key}', dict(template, version=1, contenido='Contenido posterior'), coordinator)
+        sends = self.request('GET', '/portal/difusion/envios', token=coordinator)['items']
+        self.assertEqual(next(item for item in sends if item['id'] == original['id'])['contenido'], template['contenido'])
+        piece = {'version': 0, 'titulo': 'Pieza sintética', 'canal': 'Instagram', 'fecha': send['fecha'], 'responsable_id': owner, 'estado': 'publicada', 'enlace': 'https://example.com/activity', 'visible': True}
+        piece_key = str(uuid4())
+        self.request('PUT', f'/portal/difusion/piezas/{piece_key}', dict(piece, enlace='javascript:alert(1)'), coordinator, status=422)
+        self.request('PUT', f'/portal/difusion/piezas/{piece_key}', dict(piece, responsable_id=person['id']), coordinator, status=422)
+        self.request('PUT', f'/portal/difusion/piezas/{piece_key}', dict(piece, visible='true'), coordinator, status=422)
+        self.request('PUT', f'/portal/difusion/piezas/{piece_key}', dict(piece, fecha=str(date.today() + timedelta(days=2))), coordinator, status=422)
+        self.request('PUT', f'/portal/difusion/piezas/{piece_key}', piece, coordinator)
+        self.assertIn(piece_key, [row['id'] for row in self.request('GET', '/public/enlaces/difusion')])
+        from app.models import Publication
+        engine = create_engine(self.url)
+        with Session(engine) as db:
+            news = Publication(titulo='Borrador sintético', resumen='Prueba', contenido='No exponer', categoria='Noticia', fecha=date.today(), publicada=False)
+            db.add(news); db.commit(); news_id = str(news.id)
+        engine.dispose()
+        self.request('PUT', f'/portal/difusion/piezas/{piece_key}', dict(piece, version=1, publicacion_id=news_id), coordinator)
+        self.assertNotIn(piece_key, [row['id'] for row in self.request('GET', '/public/enlaces/difusion')])
+        engine = create_engine(self.url)
+        for published, future, expired, expected in [(True, True, False, False), (True, False, True, False), (True, False, False, True)]:
+            with Session(engine) as db:
+                news = db.get(Publication, UUID(news_id))
+                news.publicada = published
+                news.fecha = date.today() + timedelta(days=2) if future else date.today() - timedelta(days=3)
+                news.vence = date.today() - timedelta(days=2) if expired else None
+                db.commit()
+            self.assertEqual(piece_key in [row['id'] for row in self.request('GET', '/public/enlaces/difusion')], expected)
+        engine.dispose()
+        faq_key = str(uuid4())
+        faq = {'version': 0, 'seccion': 'incubadora', 'pregunta': 'Pregunta sintética', 'respuesta': 'Respuesta sintética', 'orden': 2, 'activa': False}
+        self.request('PUT', f'/portal/difusion/preguntas/{faq_key}', faq, coordinator)
+        self.assertNotIn(faq_key, [row['id'] for row in self.request('GET', '/public/enlaces/preguntas?seccion=incubadora')])
+        self.request('PUT', f'/portal/difusion/preguntas/{faq_key}', dict(faq, version=1, activa=True), coordinator)
+        published = self.request('GET', '/public/enlaces/preguntas?seccion=incubadora')
+        self.assertIn(faq_key, [row['id'] for row in published])
+        self.assertNotIn('historial', next(row for row in published if row['id'] == faq_key))
+        self.request('GET', '/portal/difusion/visitas?desde=2026-02-01&hasta=2026-01-01', token=coordinator, status=422)
+        self.request('PUT', f'/portal/difusion/visitas/{uuid4()}', {'version': 0, 'grupo': 'Grupo', 'docente_coordinador': 'Docente', 'fecha': str(date.today() + timedelta(days=2)), 'responsable_id': owner, 'asistentes': 10, 'resultado': 'Orientación'}, coordinator, status=422)
+
+    def test_enlaces_contact_consent_concurrency_and_private_review(self):
+        from app.models import ConfiguracionIncubadora
+        coordinator = self.login('admin@example.com')
+        engine = create_engine(self.url)
+        with Session(engine) as db:
+            privacy = db.get(ConfiguracionIncubadora, 1)
+            if privacy is None:
+                privacy = ConfiguracionIncubadora(id=1, version=1, historial=[])
+                db.add(privacy)
+            privacy.aviso_aprobado = False
+            db.commit()
+        payload = {'nombre': 'Contacto sintético', 'correo': 'contact@example.com', 'asunto': 'Orientación', 'mensaje': 'Solicitud de prueba', 'origen': 'contacto', 'acepto_privacidad': True, 'version_aviso': 1}
+        key = str(uuid4())
+        self.request('POST', f'/public/enlaces/contacto/{key}', payload, status=409)
+        self.assertFalse(self.request('GET', '/public/enlaces/configuracion')['aviso_aprobado'])
+        with Session(engine) as db:
+            privacy = db.get(ConfiguracionIncubadora, 1)
+            privacy.aviso_privacidad = 'Aviso sintético aprobado para pruebas aisladas.'
+            privacy.aviso_aprobado = True
+            db.commit(); version = privacy.version
+        payload['version_aviso'] = version
+        self.request('POST', f'/public/enlaces/contacto/{key}', dict(payload, acepto_privacidad=False), status=422)
+        self.request('POST', f'/public/enlaces/contacto/{key}', dict(payload, version_aviso=version + 1), status=409)
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results = list(pool.map(lambda _: self.request('POST', f'/public/enlaces/contacto/{key}', payload, status=201), range(2)))
+        self.assertEqual(results[0], results[1])
+        self.request('POST', f'/public/enlaces/contacto/{key}', dict(payload, mensaje='Reemplazo'), status=409)
+        items = self.request('GET', '/portal/difusion/contactos?estado=nuevo', token=coordinator)['items']
+        row = next(item for item in items if item['id'] == key)
+        self.assertNotIn('consentimiento', row)
+        self.request('PUT', f'/portal/difusion/contactos/{key}', {'version': row['version'], 'estado': 'atendido', 'nota': 'Atención sintética registrada'}, coordinator)
+        self.request('PUT', f'/portal/difusion/contactos/{key}', {'version': row['version'], 'estado': 'atendido', 'nota': 'Reintento obsoleto'}, coordinator, status=409)
+        with Session(engine) as db:
+            from app.models import ContactoInstitucional
+            saved = db.get(ContactoInstitucional, UUID(key))
+            self.assertEqual(saved.consentimiento['version'], version)
+            self.assertEqual(saved.consentimiento['texto'], 'Aviso sintético aprobado para pruebas aisladas.')
+        engine.dispose()
+
+    def test_enlaces_event_proposals_and_unpublished_details(self):
+        coordinator = self.login('admin@example.com')
+        proposals = self.request('POST', '/portal/difusion/fichas/propuesta', {}, coordinator)
+        self.assertEqual(len(proposals), 3)
+        self.assertEqual(len(self.request('POST', '/portal/difusion/fichas/propuesta', {}, coordinator)), 3)
+        for item in proposals:
+            self.assertFalse(item['publicada'])
+            self.assertIsNone(item['evento_id'])
+            self.request('GET', f"/public/enlaces/eventos/{item['id']}", status=404)
+        config = self.request('GET', '/portal/difusion/configuracion', token=coordinator)
+        self.request('PUT', '/portal/difusion/configuracion', {'version': config['version'], 'contactos': {'instagram': 'https://user:password@example.com/'}}, coordinator, status=422)
+        saved = self.request('PUT', '/portal/difusion/configuracion', {'version': config['version'], 'vinculacion': 'Contenido sintético', 'contactos': {'correo': 'orientation@example.com'}}, coordinator)
+        self.assertEqual(self.request('GET', '/public/enlaces/configuracion')['contactos']['correo'], 'orientation@example.com')
+        self.request('PUT', '/portal/difusion/configuracion', {'version': config['version'], 'contactos': {}}, coordinator, status=409)
+        self.assertEqual(saved['version'], config['version'] + 1)
+        row = proposals[0]
+        payload = {key: row[key] for key in ['version', 'titulo', 'descripcion', 'lema', 'lugar', 'evento_id']}
+        self.request('PUT', f"/portal/difusion/fichas/{row['id']}", dict(payload, publicada=True), coordinator)
+        public = self.request('GET', f"/public/enlaces/eventos/{row['id']}")
+        self.assertIsNone(public['fecha'])
+        self.assertFalse(public['abierto'])
+        self.assertIn(row['id'], [item['id'] for item in self.request('GET', '/public/enlaces/eventos')])
+
+    def test_zz_governance_bootstrap_advisor_isolation_revocation_and_audit(self):
+        import app.auditing  # Same transaction hooks as the API process.
+        from app.models import Proyecto, ExpedienteIncubadora, AuditoriaAcceso
+        advisor = self.create_user('f_advisor')
+        owner = self.create_user('f_owner')
+        stranger = self.create_user('f_stranger')
+        coordinator = self.login('admin@example.com')
+        old_advisor = self.login('f_advisor@example.com')
+        self.request('GET', '/portal/gobierno/perfiles', token=old_advisor, status=403)
+        self.request('GET', '/portal/gobierno/auditoria', status=401)
+        publication_payload = {'titulo': 'Auditoría sintética', 'resumen': 'Texto de prueba', 'contenido': 'Texto anterior', 'categoria': 'Noticia', 'fecha': str(date.today() - timedelta(days=1)), 'publicada': False}
+        publication = self.request('POST', '/admin/publications', publication_payload, coordinator, status=201)
+        self.request('PUT', f"/admin/publications/{publication['id']}", dict(publication_payload, contenido='Texto posterior reservado'), coordinator)
+        actor = self.request('GET', '/portal/state', token=coordinator)['user']
+        manager_id = actor['id']
+        self.assertTrue(actor['gestiona_accesos'])
+        self.request('PUT', f'/portal/gobierno/perfiles/{manager_id}', {'version': 0, 'perfil': 'administrador', 'motivo': 'Bootstrap sintético'}, coordinator)
+        self.request('GET', '/portal/state', token=coordinator, status=401)
+        coordinator = self.login('admin@example.com')
+        engine = create_engine(self.url)
+        with Session(engine) as db:
+            second = Usuario(nombre='Coordinador sin perfil', correo='f_coordinator@example.com', rol=RolUsuario.admin, password_hash=hash_password('TestPass2026!'))
+            db.add(second); db.commit()
+        restricted = self.login('f_coordinator@example.com')
+        self.request('GET', '/portal/gobierno/perfiles', token=restricted, status=403)
+        self.request('GET', '/portal/gobierno/auditoria', token=restricted, status=403)
+        self.request('PUT', f'/portal/users/{manager_id}', {'nombre': 'Intento', 'correo': 'admin@example.com', 'rol': 'admin', 'password': 'OtherPass2026!'}, restricted, status=403)
+        self.request('PUT', f'/portal/gobierno/perfiles/{manager_id}', {'version': 1, 'perfil': 'sin_perfil', 'motivo': 'No eliminar último'}, coordinator, status=409)
+        self.request('PUT', f"/portal/gobierno/perfiles/{advisor['id']}", {'version': 0, 'perfil': 'asesor', 'motivo': 'Asignación sintética'}, coordinator)
+        self.request('PUT', f"/portal/users/{advisor['id']}", {'nombre': 'Asesor sintético', 'correo': 'f_advisor@example.com', 'rol': 'admin'}, coordinator, status=409)
+        self.request('GET', '/portal/state', token=old_advisor, status=401)
+        token = self.login('f_advisor@example.com')
+        self.assertEqual(self.request('GET', '/portal/state', token=token)['user']['perfil'], 'asesor')
+        with Session(engine) as db:
+            project = Proyecto(nombre='Asignado al asesor', usuario_id=UUID(owner['id']))
+            foreign = Proyecto(nombre='No asignado al asesor', usuario_id=UUID(stranger['id']))
+            db.add_all([project, foreign]); db.flush()
+            db.add(ExpedienteIncubadora(proyecto_id=project.id, asesor_id=UUID(advisor['id']), estado='activo', ultimo_movimiento=date.today(), version=1, historial=[]))
+            db.commit(); assigned_id, foreign_id = str(project.id), str(foreign.id)
+        owner_token = self.login('f_owner@example.com')
+        document = self.upload_document(assigned_id, owner_token)['id']
+        foreign_document = self.upload_document(foreign_id, self.login('f_stranger@example.com'))['id']
+        self.assertEqual(self.request('GET', f'/portal/gobierno/expedientes/{assigned_id}/documentos/{document}', token=token, binary=True), b'%PDF-1.4 document')
+        self.request('GET', f'/portal/gobierno/expedientes/{assigned_id}/documentos/{foreign_document}', token=token, status=403)
+        listed = self.request('GET', '/portal/gobierno/expedientes', token=token)
+        self.assertEqual([row['id'] for row in listed], [assigned_id])
+        self.request('GET', f'/portal/gobierno/expedientes/{foreign_id}', token=token, status=403)
+        self.request('GET', f'/portal/incubadora/proyectos/{assigned_id}', token=token, status=403)
+        folder = self.request('GET', f'/portal/gobierno/expedientes/{assigned_id}', token=token)
+        payload = {'version': folder['expediente']['version'], 'fecha': str(date.today() - timedelta(days=1)), 'tipo': 'asesoria', 'actividad': 'Atención sintética', 'responsable_id': advisor['id'], 'fecha_revision': str(date.today() + timedelta(days=5)), 'siguiente_accion': 'Validación sintética'}
+        key = str(uuid4())
+        self.request('POST', f'/portal/incubadora/proyectos/{assigned_id}/atenciones/{key}', payload, token)
+        self.request('POST', f'/portal/incubadora/proyectos/{foreign_id}/atenciones/{uuid4()}', payload, token, status=403)
+        self.request('POST', f'/portal/incubadora/proyectos/{assigned_id}/atenciones/{uuid4()}', dict(payload, tipo='cierre'), token, status=403)
+        self.request('PUT', f'/portal/incubadora/proyectos/{assigned_id}/estado', {'version': 2, 'estado': 'pausado', 'motivo': 'Intento', 'fecha': str(date.today())}, token, status=403)
+        audit = self.request('GET', '/portal/gobierno/auditoria?limit=200', token=coordinator)
+        event = next(item for item in audit['items'] if item['registro_id'] == key)
+        self.assertEqual(event['actor_id'], advisor['id'])
+        self.assertNotIn('Atención sintética', json.dumps(audit))
+        self.assertNotIn('TestPass2026!', json.dumps(audit))
+        publication_event = next(item for item in audit['items'] if item['registro_id'] == publication['id'] and item['operacion'] == 'editar')
+        self.assertEqual(publication_event['campos'], ['contenido'])
+        self.assertNotIn('Texto posterior reservado', json.dumps(audit))
+        self.request('PUT', f"/portal/gobierno/perfiles/{advisor['id']}", {'version': 1, 'perfil': 'sin_perfil', 'motivo': 'Revocación sintética'}, coordinator)
+        self.request('GET', f'/portal/gobierno/expedientes/{assigned_id}', token=token, status=401)
+        revoked = self.login('f_advisor@example.com')
+        self.request('GET', f'/portal/gobierno/expedientes/{assigned_id}', token=revoked, status=403)
+        with Session(engine) as db:
+            db.info['actor_id'] = UUID(manager_id)
+            pending = Proyecto(nombre='Transacción abortada', usuario_id=UUID(owner['id']))
+            db.add(pending); db.flush(); pending_id = str(pending.id); db.rollback()
+            self.assertIsNone(db.scalar(select(AuditoriaAcceso.id).where(AuditoriaAcceso.registro_id == pending_id)))
+            row = db.scalar(select(AuditoriaAcceso).limit(1))
+            row.operacion = 'editar'
+            with self.assertRaises(ValueError):
+                db.flush()
+            db.rollback()
+        engine.dispose()
+
+    def test_form_security_types_errors_and_password_revocation(self):
+        person = self.create_user("form_security")
+        token = self.login("form_security@example.com")
+        coordinator = self.login("admin@example.com")
+        invalid = self.request("POST", "/auth/registro", {"nombre": "   ", "correo": "invalid", "password": "private-password-value", "rol": "estudiante"}, status=422)
+        self.assertNotIn("private-password-value", json.dumps(invalid))
+        self.request("POST", "/auth/registro", {"nombre": "Otro", "correo": "FORM_SECURITY@example.com", "password": "TestPass2026!", "rol": "estudiante"}, status=409)
+        self.request("POST", "/portal/registrations/" + str(uuid4()) + "/attendance", {"asistio": "false"}, coordinator, status=422)
+        self.request("PUT", f"/portal/users/{person['id']}", {"nombre": "Nombre actualizado", "correo": "FORM_SECURITY@example.com", "rol": "estudiante", "password": "NewPassword2026!"}, coordinator)
+        self.request("GET", "/portal/state", token=token, status=401)
+        self.request("POST", "/auth/login", {"correo": "form_security@example.com", "password": "TestPass2026!"}, status=401)
+        fresh = self.request("POST", "/auth/login", {"correo": "form_security@example.com", "password": "NewPassword2026!"})["access_token"]
+        self.request("GET", "/portal/state", token=fresh)
+        from app.auth.security import create_access_token
+        malformed = create_access_token({"sub": "invalid-user-id", "rol": "admin"})
+        self.request("GET", "/portal/state", token=malformed, status=401)
+        self.request("POST", "/auth/login", {"correo": "form_security@example.com", "password": "x" * 100000}, status=413)
+
     @classmethod
     def setUpClass(cls):
         cls.name = "test_portal_" + uuid4().hex
@@ -163,6 +382,303 @@ class PortalTest(unittest.TestCase):
         self.assertNotIn("contenido", new)
         self.assertEqual(self.request("GET", download, token=token, binary=True), b"%PDF-1.4 document")
         self.assertEqual(self.request("GET", "/portal/state", token=intruder)["data"]["documents"], [])
+
+    def test_innovatec_equipment_documents_states_and_referral(self):
+        from app.modules.compartido.services import today
+        from app.modules.compartido.mutations import INNOVATION_CATALOG
+        owner = self.create_user('innova_owner')
+        self.create_user('innova_intruder')
+        token, intruder = self.login('innova_owner@example.com'), self.login('innova_intruder@example.com')
+        coordinator = self.login('admin@example.com')
+        key, team_id = str(uuid4()), str(uuid4())
+        category = INNOVATION_CATALOG['certamen']['items'][0][0]
+        day = today()
+        call = {'anio': day.year, 'titulo': 'Convocatoria temporal', 'descripcion': 'Datos sintéticos para probar el proceso local.', 'apertura': (day - timedelta(days=1)).isoformat(), 'cierre': (day + timedelta(days=7)).isoformat(), 'categorias': [category], 'requisitos': ['Ficha de equipo'], 'aviso_privacidad': 'Aviso sintético para pruebas; no es un aviso institucional real.', 'aviso_aprobado': True, 'publicada': True}
+        self.request('PUT', f'/portal/innovatec/convocatorias/{key}', call, token, status=403)
+        self.request('PUT', f'/portal/innovatec/convocatorias/{key}', {**call, 'aviso_aprobado': False}, coordinator, status=422)
+        self.request('PUT', f'/portal/innovatec/convocatorias/{key}', {**call, 'apertura': True}, coordinator, status=422)
+        saved_call = self.request('PUT', f'/portal/innovatec/convocatorias/{key}', call, coordinator)
+        self.assertEqual(self.request('GET', '/public/innovatec/convocatorias')[0]['id'], key)
+        body = {'id': team_id, 'convocatoria_id': key, 'nombre': 'Proyecto InnovaTec temporal', 'equipo': 'Equipo temporal', 'descripcion': 'Propuesta de prueba con Unicode: innovación.', 'categoria': category, 'acepto_privacidad': True, 'version_convocatoria': saved_call['version'], 'integrantes': [{'nombre': 'Alumna de prueba', 'correo': 'innova_owner@example.com', 'carrera': 'Carrera de prueba', 'semestre': 4, 'tipo': 'participante'}, {'nombre': 'Docente de prueba', 'correo': 'innova_advisor@example.com', 'tipo': 'asesor'}]}
+        self.request('POST', '/portal/innovatec/equipos', body, status=401)
+        self.request('POST', '/portal/innovatec/equipos', {**body, 'estado': 'acreditado'}, token, status=422)
+        self.request('POST', '/portal/innovatec/equipos', {**body, 'acepto_privacidad': 'false'}, token, status=422)
+        self.request('POST', '/portal/innovatec/equipos', {**body, 'integrantes': [{**body['integrantes'][0], 'semestre': '4'}, body['integrantes'][1]]}, token, status=422)
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            registered = list(pool.map(lambda _: self.request('POST', '/portal/innovatec/equipos', body, token, status=201), range(2)))
+        team = registered[0]
+        self.assertEqual(registered[0]['folio'], registered[1]['folio'])
+        self.assertEqual(self.request('GET', '/portal/innovatec/equipos', token=token)['total'], 1)
+        self.assertEqual(self.request('GET', '/portal/innovatec/equipos', token=intruder)['items'], [])
+        self.request('GET', f'/portal/innovatec/equipos/{team_id}', token=intruder, status=403)
+        self.request('POST', f'/portal/innovatec/equipos/{team_id}/canalizar', token=token, status=403)
+        self.request('POST', f'/portal/innovatec/equipos/{team_id}/canalizar', token=coordinator, status=409)
+        self.request('POST', f'/portal/innovatec/equipos/{team_id}/estado', {'estado': 'acreditado', 'version': team['version'], 'motivo': 'Intento de salto'}, coordinator, status=409)
+        self.request('POST', f'/portal/innovatec/equipos/{team_id}/estado', {'estado': 'documentacion_recibida', 'version': team['version'], 'motivo': 'Recibir documentación'}, token, status=403)
+        self.request('POST', f'/portal/innovatec/equipos/{team_id}/estado', {'estado': 'documentacion_recibida', 'version': team['version'], 'motivo': 'Recibir documentación'}, coordinator, status=422)
+        proposal = self.request('GET', '/portal/state', token=token)['data']['innovation'][0]
+        self.assertEqual(proposal['equipo_id'], team_id)
+        self.request('PUT', f"/portal/innovation/{proposal['id']}", {**proposal, 'estatus_anterior': proposal['estatus'], 'nombre': 'Cambio que evita el expediente'}, token, status=409)
+        edited_call = self.request('PUT', f'/portal/innovatec/convocatorias/{key}', {**call, 'requisitos': ['Otro requisito'], 'version': saved_call['version']}, coordinator)
+        self.assertEqual(self.request('GET', f'/portal/innovatec/equipos/{team_id}', token=token)['requisitos'], ['Ficha de equipo'])
+        self.request('PUT', f'/portal/innovatec/convocatorias/{key}', {**call, 'version': saved_call['version']}, coordinator, status=409)
+        self.request('PUT', f'/portal/innovatec/convocatorias/{key}', {**call, 'anio': day.year + 1, 'version': edited_call['version']}, coordinator, status=409)
+        edit = {**body, 'innovacion_id': team['innovacion_id'], 'version': team['version'], 'descripcion': 'Descripción corregida por su responsable.', 'integrantes': [{**body['integrantes'][0], 'semestre': 5}, {**body['integrantes'][1], 'correo': 'corrected_advisor@example.com'}]}
+        self.request('PUT', f'/portal/innovatec/equipos/{team_id}', edit, intruder, status=403)
+        self.request('PUT', f'/portal/innovatec/equipos/{team_id}', {**edit, 'convocatoria_id': str(uuid4())}, token, status=422)
+        team = self.request('PUT', f'/portal/innovatec/equipos/{team_id}', edit, token)
+        self.request('PUT', f'/portal/innovatec/equipos/{team_id}', edit, token, status=409)
+        self.assertEqual(len(team['integrantes']), 2)
+        self.assertEqual(team['propuesta']['descripcion'], edit['descripcion'])
+        self.assertEqual(team['propuesta']['estatus'], 'En revisión')
+        self.assertEqual(team['convocatoria']['version_aceptada'], saved_call['version'])
+
+        def upload(path, actor, fields, content=b'%PDF-1.4 document', name='ficha.pdf', expected=201):
+            boundary = 'innova-' + uuid4().hex
+            parts = [(f'--{boundary}\r\nContent-Disposition: form-data; name="{k}"\r\n\r\n{v}\r\n').encode() for k, v in fields.items()]
+            parts.append((f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="{name}"\r\nContent-Type: application/octet-stream\r\n\r\n').encode() + content + f'\r\n--{boundary}--\r\n'.encode())
+            req = Request(self.base + path, data=b''.join(parts), headers={'Authorization': 'Bearer ' + actor, 'Content-Type': f'multipart/form-data; boundary={boundary}'})
+            try:
+                response = urlopen(req, timeout=20)
+            except HTTPError as error:
+                response = error
+            value = response.read()
+            self.assertEqual(response.status, expected, value)
+            return json.loads(value)
+
+        route = f'/portal/innovatec/equipos/{team_id}/documentos'
+        upload(route, intruder, {'requisito': 'Ficha de equipo'}, expected=403)
+        upload(route, token, {'requisito': 'Otro requisito'}, expected=422)
+        upload(route, token, {'requisito': 'Ficha de equipo'}, content=b'not a PDF', expected=422)
+        team = upload(route, token, {'requisito': 'Ficha de equipo'})
+        first = team['documentos'][0]['id']
+        self.request('GET', f'/portal/innovatec/documentos/{first}', token=intruder, status=403)
+        self.assertEqual(self.request('GET', f'/portal/innovatec/documentos/{first}', token=token, binary=True), b'%PDF-1.4 document')
+        self.assertNotIn('bucket', team['documentos'][0])
+        self.assertNotIn('contenido', team['documentos'][0])
+        self.request('POST', f'/portal/innovatec/documentos/{first}/revision', {'estado': 'observado', 'estado_anterior': 'recibido', 'comentarios': ' '}, coordinator, status=422)
+        team = self.request('POST', f'/portal/innovatec/documentos/{first}/revision', {'estado': 'observado', 'estado_anterior': 'recibido', 'comentarios': 'Adjunta versión firmada.'}, coordinator)
+        team = upload(route, token, {'requisito': 'Ficha de equipo'}, content=b'%PDF-1.4 corrected')
+        self.assertEqual(len(team['documentos']), 2)
+        current = next(d for d in team['documentos'] if d['vigente'])
+        self.assertNotEqual(current['id'], first)
+        team = self.request('POST', f'/portal/innovatec/equipos/{team_id}/estado', {'estado': 'documentacion_recibida', 'version': team['version'], 'motivo': 'Recibidos'}, coordinator)
+        self.request('POST', f'/portal/innovatec/equipos/{team_id}/estado', {'estado': 'etapa_local', 'version': team['version'], 'motivo': 'Admitir'}, coordinator, status=422)
+        proposal = next(p for p in self.request('GET', '/portal/state', token=coordinator)['data']['innovation'] if p['equipo_id'] == team_id)
+        self.request('PUT', f"/portal/innovation/{proposal['id']}", {**proposal, 'estatus_anterior': proposal['estatus'], 'estatus': 'Aprobada'}, coordinator)
+        team = self.request('POST', f"/portal/innovatec/documentos/{current['id']}/revision", {'estado': 'aprobado', 'estado_anterior': 'recibido', 'comentarios': 'Verificado'}, coordinator)
+        stale = team['version']
+        team = self.request('POST', f'/portal/innovatec/equipos/{team_id}/estado', {'estado': 'etapa_local', 'version': team['version'], 'motivo': 'Admitido a etapa local'}, coordinator)
+        self.request('POST', f'/portal/innovatec/equipos/{team_id}/estado', {'estado': 'acreditado', 'version': stale, 'motivo': 'Resultado'}, coordinator, status=409)
+        team = self.request('POST', f'/portal/innovatec/equipos/{team_id}/estado', {'estado': 'acreditado', 'version': team['version'], 'motivo': 'Resultado de prueba'}, coordinator)
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            referrals = list(pool.map(lambda _: self.request('POST', f'/portal/innovatec/equipos/{team_id}/canalizar', token=coordinator), range(2)))
+        self.assertEqual(referrals[0]['proyecto_id'], referrals[1]['proyecto_id'])
+        project = next(p for p in self.request('GET', '/portal/state', token=token)['data']['projects'] if p['id'] == referrals[0]['proyecto_id'])
+        self.assertEqual(project['nombre'], body['nombre'])
+        self.assertEqual(project['descripcion'], edit['descripcion'])
+        self.assertEqual(project['owner'], owner['id'])
+        member = team['integrantes'][0]
+        delivery = {'estado': 'entregado', 'estado_anterior': 'pendiente', 'fecha': day.isoformat()}
+        self.request('PUT', f"/portal/innovatec/integrantes/{member['id']}/diploma", delivery, token, status=403)
+        self.request('PUT', f"/portal/innovatec/integrantes/{member['id']}/diploma", {**delivery, 'fecha': (day + timedelta(days=1)).isoformat()}, coordinator, status=422)
+        self.request('PUT', f"/portal/innovatec/integrantes/{member['id']}/diploma", delivery, coordinator)
+        self.request('GET', f"/portal/innovatec/integrantes/{member['id']}/diploma.pdf", token=intruder, status=403)
+        diploma_bytes = self.request('GET', f"/portal/innovatec/integrantes/{member['id']}/diploma.pdf", token=token, binary=True)
+        self.assertTrue(diploma_bytes.startswith(b'%PDF-'))
+        self.assertGreater(len(diploma_bytes), 50000)
+        self.request('PUT', f"/portal/innovatec/integrantes/{member['id']}/diploma", delivery, coordinator, status=409)
+        self.request('GET', '/portal/innovatec/diplomas', token=token, status=403)
+        self.assertEqual(self.request('GET', '/portal/innovatec/diplomas?estado=entregado', token=coordinator)['total'], 1)
+        file = upload(f'/portal/innovatec/convocatorias/{key}/archivos', coordinator, {'tipo': 'manual', 'version_manual': 'prueba-1'})
+        self.assertEqual(self.request('GET', f"/public/innovatec/archivos/{file['id']}", binary=True), b'%PDF-1.4 document')
+        team = self.request('GET', f'/portal/innovatec/equipos/{team_id}', token=coordinator)
+        logistics = {'version': team['version'], 'etapa': 'regional', 'fecha': (day + timedelta(days=2)).isoformat(), 'sede': 'Sede temporal', 'responsables': 'Coordinación de prueba', 'transporte': 'Gestión temporal', 'hospedaje': 'Gestión temporal', 'gestiones': [{'nombre': 'Traslado', 'responsable': 'Responsable temporal', 'estado': 'pendiente'}]}
+        self.request('PUT', f'/portal/innovatec/equipos/{team_id}/seguimiento', logistics, token, status=403)
+        team = self.request('PUT', f'/portal/innovatec/equipos/{team_id}/seguimiento', logistics, coordinator)
+        self.request('PUT', f'/portal/innovatec/equipos/{team_id}/seguimiento', logistics, coordinator, status=409)
+        team = self.request('POST', f'/portal/innovatec/equipos/{team_id}/estado', {'estado': 'etapa_regional', 'version': team['version'], 'motivo': 'Continuidad regional de prueba'}, coordinator)
+        self.assertEqual(team['propuesta']['etapa'], 'Regional')
+        self.assertEqual(self.request('GET', '/portal/innovatec/equipos?etapa=Regional', token=token)['total'], 1)
+        self.assertEqual(self.request('GET', '/portal/innovatec/equipos?etapa=Local', token=token)['total'], 0)
+        self.request('GET', '/portal/innovatec/equipos?etapa=ADMIN', token=token, status=422)
+        event = {'nombre': 'Plática temporal InnovaTec', 'descripcion': 'Sesión exclusiva de prueba.', 'tipo': 'Taller', 'fecha': (day + timedelta(days=5)).isoformat(), 'hora': '10:00', 'cupo': 10, 'precio': 0, 'modalidad': 'Presencial', 'estatus': 'Activo'}
+        talk_id = str(uuid4())
+        talk = {'evento': event, 'publico': 'alumnos', 'contenido': 'Qué es InnovaTec, beneficios y proceso.', 'sede': 'Sede temporal'}
+        self.request('PUT', f'/portal/innovatec/platicas/{talk_id}', talk, token, status=403)
+        saved_talk = self.request('PUT', f'/portal/innovatec/platicas/{talk_id}', talk, coordinator)
+        self.assertTrue(any(p['id'] == talk_id for p in self.request('GET', '/public/innovatec/platicas')))
+        registration = self.request('POST', f"/portal/events/{saved_talk['evento_id']}/register", {}, token=token)
+        self.assertTrue(registration['confirmed'])
+        self.assertTrue(any(r['event'] == saved_talk['evento_id'] for r in self.request('GET', '/portal/state', token=token)['data']['registrations']))
+        existing_event_id = str(uuid4())
+        self.request('PUT', f'/portal/events/{existing_event_id}', {**event, 'nombre': 'Evento existente para plática'}, coordinator)
+        reused = self.request('PUT', f'/portal/innovatec/platicas/{uuid4()}', {**talk, 'evento_id': existing_event_id, 'evento': {**event, 'nombre': 'Evento existente para plática'}}, coordinator)
+        self.assertEqual(reused['evento_id'], existing_event_id)
+        self.request('PUT', f'/portal/innovatec/platicas/{uuid4()}', {**talk, 'evento_id': existing_event_id}, coordinator, status=409)
+
+    def test_incubadora_diagnostic_attention_states_and_indicators(self):
+        from app.modules.compartido.services import today
+        day = today()
+        owner = self.create_user('incubation_owner')
+        stranger = self.create_user('incubation_stranger')
+        token = self.login('incubation_owner@example.com')
+        other = self.login('incubation_stranger@example.com')
+        coordinator = self.login('admin@example.com')
+        project_id = str(uuid4())
+        project = {'nombre': 'Proyecto de diagnóstico temporal', 'descripcion': 'Validar un servicio temporal.', 'producto_servicio': 'Servicio temporal', 'fecha': day.isoformat()}
+        registration_id = self.initial_form(token, project)
+        self.request('PUT', f'/portal/projects/{project_id}', {**project, 'registro_id': registration_id}, token)
+        root = f'/portal/incubadora/proyectos/{project_id}'
+        self.request('GET', root, token=other, status=403)
+        folder = self.request('GET', root, token=token)
+        self.assertEqual(folder['expediente']['version'], 0)
+        config = self.request('GET', '/portal/incubadora/configuracion', token=coordinator)
+        settings = {'version': config['version'], 'dias_inactividad': 15, 'aviso_privacidad': 'Aviso sintético exclusivo de pruebas automatizadas, sin validez institucional.', 'aviso_aprobado': True}
+        self.request('PUT', '/portal/incubadora/configuracion', settings, token, status=403)
+        self.request('PUT', '/portal/incubadora/configuracion', {**settings, 'aviso_aprobado': 'false'}, coordinator, status=422)
+        config = self.request('PUT', '/portal/incubadora/configuracion', settings, coordinator)
+        self.request('PUT', '/portal/incubadora/configuracion', settings, coordinator, status=409)
+        proposal = self.request('POST', '/portal/incubadora/catalogo/propuesta', {}, coordinator)
+        repeated = self.request('POST', '/portal/incubadora/catalogo/propuesta', {}, coordinator)
+        self.assertEqual(len(proposal['servicios']), 12)
+        self.assertEqual(len(repeated['hitos']), 12)
+        self.request('POST', '/portal/incubadora/catalogo/propuesta', {}, token, status=403)
+        diagnosis_id = str(uuid4())
+        diagnosis = {'version': 0, 'proyecto_id': project_id, 'telefono': '+52 844 1234567', 'tipo_usuario': 'alumno', 'carrera': 'Carrera temporal', 'semestre': 4, 'perfil': 'idea de negocio', 'etapa': 'antes de vender o formalizar', 'descripcion': 'Idea temporal con texto Unicode: café y piñón.', 'estado_actual': 'idea', 'necesidades': ['cliente / mercado / validación'], 'canal_llegada': 'InnovaTec', 'proyecto_pausado': False, 'frecuencia': 'cada 15 días', 'modalidad': 'mixta', 'acepto_privacidad': True, 'version_aviso': config['version']}
+        self.request('PUT', f'/portal/incubadora/diagnosticos/{diagnosis_id}', {**diagnosis, 'semestre': '4'}, token, status=422)
+        self.request('PUT', f'/portal/incubadora/diagnosticos/{diagnosis_id}', {**diagnosis, 'proyecto_pausado': 'false'}, token, status=422)
+        self.request('PUT', f'/portal/incubadora/diagnosticos/{diagnosis_id}', {**diagnosis, 'estado': 'formalizado'}, token, status=422)
+        self.request('PUT', f'/portal/incubadora/diagnosticos/{diagnosis_id}', diagnosis, other, status=403)
+        saved = self.request('PUT', f'/portal/incubadora/diagnosticos/{diagnosis_id}', diagnosis, token)
+        self.assertNotIn('texto', saved['consentimiento'])
+        self.request('PUT', f'/portal/incubadora/diagnosticos/{uuid4()}', diagnosis, token, status=409)
+        self.request('GET', f'/portal/incubadora/diagnosticos/{diagnosis_id}/registro.pdf', token=other, status=403)
+        pdf = self.request('GET', f'/portal/incubadora/diagnosticos/{diagnosis_id}/registro.pdf', token=token, binary=True)
+        self.assertTrue(pdf.startswith(b'%PDF-'))
+        folder = self.request('GET', root, token=token)
+        self.assertEqual(folder['expediente']['proxima_revision'], (day + timedelta(days=15)).isoformat())
+        version = folder['expediente']['version']
+        attention = {'version': version, 'fecha': day.isoformat(), 'tipo': 'seguimiento', 'servicio_id': proposal['servicios'][0]['id'], 'actividad': 'Validar necesidades del cliente', 'responsable_id': owner['id'], 'fecha_revision': (day + timedelta(days=7)).isoformat()}
+        endpoint = root + '/atenciones/' + str(uuid4())
+        self.request('POST', endpoint, attention, token, status=403)
+        for field in ('actividad', 'responsable_id', 'fecha_revision'):
+            self.request('POST', endpoint, {key: value for key, value in attention.items() if key != field}, coordinator, status=422)
+        self.request('POST', endpoint, {**attention, 'actividad': '  '}, coordinator, status=422)
+        self.request('POST', endpoint, {**attention, 'fecha_revision': '2026-02-30'}, coordinator, status=422)
+        self.request('POST', endpoint, {**attention, 'responsable_id': stranger['id']}, coordinator, status=422)
+        with ThreadPoolExecutor(2) as pool:
+            attempts = list(pool.map(lambda _: self.request('POST', endpoint, attention, coordinator), range(2)))
+        self.assertEqual(attempts[0]['id'], attempts[1]['id'])
+        folder = self.request('GET', root, token=token)
+        self.assertEqual(len(folder['atenciones']), 1)
+        self.assertEqual(folder['expediente']['estado'], 'en_seguimiento')
+        self.request('PUT', root + '/estado', {'version': folder['expediente']['version'], 'estado': 'pausado', 'motivo': 'Pausa temporal', 'fecha': day.isoformat()}, coordinator, status=409)
+        hito = proposal['hitos'][0]
+        progress = {'version': 0, 'estado': 'cumplido', 'fecha': day.isoformat()}
+        self.request('PUT', root + f"/hitos/{hito['id']}", {**progress, 'fecha': None}, token, status=422)
+        self.request('PUT', root + f"/hitos/{hito['id']}", progress, other, status=403)
+        self.request('PUT', root + f"/hitos/{hito['id']}", progress, token)
+        folder = self.request('GET', root, token=token)
+        closing = {**attention, 'version': folder['expediente']['version'], 'tipo': 'cierre', 'actividad': 'Conservar el expediente durante la pausa'}
+        self.request('POST', root + '/atenciones/' + str(uuid4()), closing, coordinator)
+        folder = self.request('GET', root, token=token)
+        paused = self.request('PUT', root + '/estado', {'version': folder['expediente']['version'], 'estado': 'pausado', 'motivo': 'Pausa temporal de prueba', 'fecha': day.isoformat()}, coordinator)
+        inactives = self.request('GET', '/portal/incubadora/seguimientos?vista=inactivos', token=coordinator)
+        self.assertTrue(any(row['proyecto_id'] == project_id for row in inactives['items']))
+        self.request('POST', root + '/atenciones/' + str(uuid4()), {**attention, 'version': paused['version']}, coordinator, status=409)
+        recovered = {**attention, 'version': paused['version'], 'tipo': 'recuperacion', 'actividad': 'Retomar validación del cliente'}
+        self.request('POST', root + '/atenciones/' + str(uuid4()), recovered, coordinator)
+        folder = self.request('GET', root, token=token)
+        self.assertEqual(folder['expediente']['estado'], 'activo')
+        self.request('GET', '/portal/incubadora/indicadores', token=token, status=403)
+        stats = self.request('GET', '/portal/incubadora/indicadores?perfil=idea%20de%20negocio', token=coordinator)
+        self.assertEqual(stats['proyectos'], 1)
+        self.assertEqual(stats['diagnosticos'], 1)
+        self.assertEqual(stats['actividades_completadas'], 1)
+        self.request('GET', '/portal/incubadora/indicadores?desde=2026-02-02&hasta=2026-01-01', token=coordinator, status=422)
+        public_id = str(uuid4())
+        registration = {**diagnosis, 'proyecto_id': None, 'nombre': 'Registro simplificado temporal', 'producto_servicio': 'Servicio de prueba'}
+        self.request('POST', f'/portal/incubadora/registro/{public_id}', registration, coordinator, status=403)
+        with ThreadPoolExecutor(2) as pool:
+            results = list(pool.map(lambda _: self.request('POST', f'/portal/incubadora/registro/{public_id}', registration, token, status=201), range(2)))
+        self.assertEqual(results[0]['id'], results[1]['id'])
+        self.assertEqual(results[0]['proyecto_id'], public_id)
+        self.assertEqual(self.request('GET', f'/portal/incubadora/proyectos/{public_id}', token=token)['proyecto']['estatus'], 'En revisión')
+        self.request('POST', root + '/atenciones/' + str(uuid4()), {**attention, 'version': folder['expediente']['version'], 'fecha': (day - timedelta(days=20)).isoformat(), 'fecha_revision': (day - timedelta(days=5)).isoformat()}, coordinator)
+        overdue = self.request('GET', '/portal/incubadora/seguimientos?vista=vencidos', token=coordinator)
+        self.assertTrue(any(row['proyecto_id'] == project_id for row in overdue['items']))
+
+    def test_surveys_types_duplicates_freeze_privacy_and_results(self):
+        from app.modules.compartido.services import today
+        day = today()
+        user = self.create_user('survey_respondent')
+        token = self.login('survey_respondent@example.com')
+        admin = self.login('admin@example.com')
+        survey_id = str(uuid4())
+        qids = [str(uuid4()) for _ in range(4)]
+        definitions = [
+            {'id': qids[0], 'titulo': 'Opción única', 'tipo': 'seleccion_unica', 'opciones': ['A', 'B']},
+            {'id': qids[1], 'titulo': 'Necesidades', 'tipo': 'multiseleccion', 'opciones': ['Mercado', 'Ventas']},
+            {'id': qids[2], 'titulo': 'Valoración', 'tipo': 'escala', 'minimo': 1, 'maximo': 5},
+            {'id': qids[3], 'titulo': 'Comentario opcional', 'tipo': 'texto', 'obligatoria': False},
+        ]
+        payload = {'titulo': 'Encuesta temporal de prueba', 'descripcion': 'Datos sintéticos, sin publicación real.', 'publico': 'alumnos', 'anonima': True, 'publicada': True, 'apertura': (day - timedelta(days=7)).isoformat(), 'cierre': (day + timedelta(days=7)).isoformat(), 'preguntas': definitions}
+        self.request('PUT', f'/portal/encuestas/{survey_id}', payload, token, status=403)
+        self.request('PUT', f'/portal/encuestas/{survey_id}', {**payload, 'anonima': 'false'}, admin, status=422)
+        self.request('PUT', f'/portal/encuestas/{survey_id}', {**payload, 'cierre': '2026-02-30'}, admin, status=422)
+        survey = self.request('PUT', f'/portal/encuestas/{survey_id}', payload, admin)
+        self.request('GET', '/portal/encuestas', token=token, status=403)
+        response_id = str(uuid4())
+        answers = {'id': response_id, 'version_encuesta': survey['version'], 'respuestas': {qids[0]: 'A', qids[1]: ['Mercado', 'Ventas'], qids[2]: 3, qids[3]: ' café y piñón '}}
+        self.request('POST', f'/public/encuestas/{survey_id}/respuestas', answers, status=409)
+        with urlopen(self.base + f'/public/encuestas/{survey_id}', timeout=20) as response:
+            cookie = response.headers['Set-Cookie'].split(';', 1)[0]
+            self.assertIn('HttpOnly', response.headers['Set-Cookie'])
+            self.assertIn('SameSite=lax', response.headers['Set-Cookie'])
+            self.assertTrue(json.loads(response.read())['abierta'])
+        def anonymous(body, status=201):
+            req = Request(self.base + f'/public/encuestas/{survey_id}/respuestas', data=json.dumps(body).encode(), headers={'Content-Type': 'application/json', 'Cookie': cookie}, method='POST')
+            try:
+                response = urlopen(req, timeout=20)
+            except HTTPError as error:
+                response = error
+            with response:
+                data = json.loads(response.read())
+                self.assertEqual(response.status, status, data)
+                return data
+        anonymous({**answers, 'respuestas': {**answers['respuestas'], qids[2]: '3'}}, 422)
+        anonymous({**answers, 'respuestas': {**answers['respuestas'], qids[1]: ['Mercado', 'Mercado']}}, 422)
+        anonymous({**answers, 'respuestas': {**answers['respuestas'], qids[0]: 'ADMIN'}}, 422)
+        anonymous({**answers, 'respuestas': {qids[0]: 'A'}}, 422)
+        anonymous({**answers, 'respuestas': {**answers['respuestas'], str(uuid4()): 'Ajena'}}, 422)
+        with ThreadPoolExecutor(2) as pool:
+            confirmations = list(pool.map(lambda _: anonymous(answers), range(2)))
+        self.assertEqual(confirmations[0]['id'], confirmations[1]['id'])
+        anonymous({**answers, 'id': str(uuid4())}, 409)
+        self.request('GET', f'/portal/encuestas/{survey_id}/resultados', token=token, status=403)
+        result = self.request('GET', f'/portal/encuestas/{survey_id}/resultados', token=admin)
+        self.assertEqual(result['total'], 1)
+        self.assertEqual(result['preguntas'][0]['distribucion'][0]['porcentaje'], 100)
+        self.assertEqual(sum(option['porcentaje'] for option in result['preguntas'][1]['distribucion']), 200)
+        self.assertEqual(result['preguntas'][3]['textos'], ['café y piñón'])
+        self.assertNotIn('identidad', json.dumps(result))
+        self.assertNotIn('usuario_id', json.dumps(result['respuestas']))
+        changed = {**payload, 'version': survey['version'], 'preguntas': [{**definitions[0], 'titulo': 'Pregunta alterada'}, *definitions[1:]]}
+        self.request('PUT', f'/portal/encuestas/{survey_id}', changed, admin, status=409)
+        self.request('PUT', f'/portal/encuestas/{survey_id}', {**payload, 'version': survey['version'], 'anonima': False}, admin, status=409)
+        identified_id = str(uuid4())
+        config = self.request('GET', '/portal/incubadora/configuracion', token=admin)
+        self.request('PUT', '/portal/incubadora/configuracion', {'version': config['version'], 'aviso_privacidad': 'Aviso sintético exclusivo de pruebas; sin validez institucional.', 'aviso_aprobado': True}, admin)
+        identified = self.request('PUT', f'/portal/encuestas/{identified_id}', {**payload, 'anonima': False, 'preguntas': [{**definitions[0], 'id': str(uuid4())}]}, admin)
+        identified_answers = {'id': str(uuid4()), 'version_encuesta': identified['version'], 'respuestas': {identified['preguntas'][0]['id']: 'B'}, 'acepto_privacidad': True}
+        self.request('POST', f'/public/encuestas/{identified_id}/respuestas', identified_answers, status=401)
+        self.request('POST', f'/public/encuestas/{identified_id}/respuestas', {**identified_answers, 'acepto_privacidad': False}, token, status=422)
+        self.request('POST', f'/public/encuestas/{identified_id}/respuestas', identified_answers, token, status=201)
+        self.request('POST', f'/public/encuestas/{identified_id}/respuestas', {**identified_answers, 'id': str(uuid4())}, token, status=409)
+        closed = self.request('PUT', f'/portal/encuestas/{survey_id}', {**payload, 'version': survey['version'], 'cierre': (day - timedelta(days=1)).isoformat()}, admin)
+        self.assertGreater(closed['version'], survey['version'])
+        anonymous({**answers, 'version_encuesta': closed['version']}, 409)
 
     def create_user(self, alias, role="estudiante"):
         return self.request("POST", "/auth/registro", {"nombre": alias, "correo": f"{alias}@example.com", "password": "TestPass2026!", "rol": role}, status=201)
@@ -354,7 +870,7 @@ class PortalTest(unittest.TestCase):
         self.assertEqual(upgraded["user"]["rol"], "estudiante")
         self.assertEqual(upgraded["data"]["projects"][0]["nombre"], "Idea externa")
         self.request("PUT", f"/portal/requests/{requestid}", {**application, "estatus": "Aprobada"}, admin, status=400)
-        proposal = {"nombre": "Robot", "equipo": "Equipo", "lider": "Alice", "asesor": "Docente", "descripcion": "Robot de prueba", "modulo": "InnoBótica", "categoria": "Minisumo"}
+        proposal = {"nombre": "Robot", "equipo": "Equipo", "lider": "Alice", "asesor": "Docente", "descripcion": "Robot de prueba", "modulo": "InnoBótica", "categoria": "Robots Minisumo"}
         innovationid = str(uuid4())
         self.request("PUT", f"/portal/innovation/{innovationid}", proposal, a)
         self.request("PUT", f"/portal/innovation/{innovationid}", {**proposal, "estatus": "En revisión", "estatus_anterior": "Borrador"}, a)

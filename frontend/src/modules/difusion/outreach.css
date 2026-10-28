@@ -1,0 +1,8 @@
+.outreach-workspace { min-width: 0; overflow-wrap: anywhere; }
+.outreach-workspace .field, .outreach-workspace fieldset, .outreach-workspace input, .outreach-workspace select, .outreach-workspace textarea { min-width: 0; max-width: 100%; }
+.outreach-workspace .table-scroll table { min-width: 40rem; }
+.outreach-links { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-block: var(--space-2); }
+.outreach-text { white-space: pre-wrap; }
+
+.governance-audit .table-scroll table { min-width: 64rem; }
+.governance-audit td { vertical-align: top; }

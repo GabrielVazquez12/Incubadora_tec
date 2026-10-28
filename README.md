@@ -1,4 +1,24 @@
-# Incubadora en Linea/ Sistema que integre y automatice los procesos de la incubadora de empresas e Innovatec
+# Enlaces Institucionales ITS
+
+Conectando ideas, generando oportunidades. Portal de Incubadora de Empresas, InnovaTec, Vinculación y Eventos del Instituto Tecnológico de Saltillo.
+
+## Rediseño institucional por fases
+
+La Fase A conserva las rutas, API, autenticación, roles y base de datos existentes. Coordinador y Emprendedor usan la barra de menú como navegación global y una bienvenida sin tarjetas ni resúmenes de módulos. Las fases B, C y D extienden InnovaTec, Incubadora y encuestas; la fase E integra difusión, eventos y vinculación. Las funciones que requieren contenido institucional aprobado conservan sus pendientes explícitos. La fase F incorpora perfiles complementarios, asesoría asignada, auditoría y SEO, con verificación local completada. Las fases B–F están desplegadas en AWS; resultados y pendientes en el [informe de publicación](docs/PUBLICACION_ENLACES_B_F.md).
+
+- [Auditoría inicial y plan](docs/AUDITORIA_ENLACES_PASO_1.md).
+- [Cambios, capturas, pruebas y guía de Fase A](docs/FASE_A_ENLACES.md).
+- [Fase B: InnovaTec](docs/FASE_B_ENLACES.md), [Fase C: Incubadora](docs/FASE_C_ENLACES.md), [Fase D: encuestas](docs/FASE_D_ENLACES.md) y [Fase E: difusión y vinculación](docs/FASE_E_ENLACES.md).
+- [Fase F: perfiles, auditoría, SEO y resultados de verificación](docs/FASE_F_ENLACES.md). [Guía de administración](docs/GUIA_ADMINISTRACION_ENLACES.md).
+- Tokens únicos: `frontend/src/shared/design/tokens.css`; colores anteriores resueltos mediante aliases, sin cambiar selectores que otros módulos utilizan.
+- Marca completa: `BrandImage.jsx`, con WebP/JPEG, alt institucional y despeje proporcional. Encabezado: `InstitutionalBrand.jsx`, recorte exacto más texto HTML; 72/56 px, símbolo 48/40 px y margen compacto aprobado. No se muestran escudos separados junto a la nueva marca.
+- Fuentes autoalojadas Cormorant Garamond/Montserrat, licencias en `frontend/public/fonts`, `font-display: swap`; no paquetes nuevos.
+- Menús por perfil: orden y rutas actuales conservados; Difusión bajo Gestionar noticias, Inactivos bajo Seguimiento, Indicadores bajo Reportes; Encuestas, Catálogo y Gestión InnovaTec añadidos solo a Coordinador. El destino actual interno de InnovaTecNM se conserva hasta recibir una URL externa oficial.
+- Variables existentes: `VITE_API_URL`, `DATABASE_URL`, `JWT_SECRET`, `DOCUMENT_STORAGE` y configuración AWS documentada en `.env.example`/guías existentes. Para compilar como producción, usar `VITE_API_URL=/api`; no poner secretos en el frontend. La Fase A no añade variables ni migraciones y no modifica `.env`.
+
+Pruebas y build: `npm test --prefix frontend`, `npm run build --prefix frontend`, suite Python existente con PostgreSQL aislado. Prueba reproducible de diseño y formularios en Chrome: `./scripts/verify-design-local.ps1` (Docker y Chrome requeridos; puerto local 8091). Crea su propia red/BD y cuentas sintéticas, conserva capturas en `.local/design-test-*` y elimina los recursos temporales al terminar. `-SkipBuild` reutiliza la imagen local ya construida. No usa RDS ni datos de producción. Lint/formatter/typecheck no están configurados; no se declaran aprobados.
+
+Las instrucciones originales de instalación y módulos se conservan a continuación.
 
 
 > Plataforma para digitalizar y sistematizar los procesos de la incubadora del Tecnológico de Saltillo, sustituyendo el manejo manual actual (correos, PDFs, impresión) por un sistema centralizado con roles.
@@ -25,8 +45,8 @@ Actualmente las coordinadoras de la incubadora gestionan todo de forma manual: r
 | Generación de Excel | pandas / openpyxl |
 | Generación de PDF | WeasyPrint / ReportLab |
 | Pagos | Stripe / Mercado Pago (sandbox) — Quentli como opción institucional a futuro |
-| Hosting backend | AWS App Runner |
-| Hosting frontend | S3 + CloudFront / Amplify |
+| Hosting backend | Amazon ECS Express Gateway Service (Fargate, HTTPS) |
+| Hosting frontend | Compilación Vite servida por el mismo servicio ECS; API bajo `/api` |
 
 > Ver `docs/stack-tecnologico.md` para el detalle de alternativas consideradas y justificación de cada decisión.
 

@@ -1,9 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from app.database import get_db
 from app.models.usuario import Usuario, RolUsuario
 from app.schemas.usuario import UsuarioCreate, UsuarioOut, LoginRequest, TokenResponse
 from app.auth.security import hash_password, verify_password, create_access_token
+from app.auth.rate_limit import login_attempt
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -17,9 +19,9 @@ def registrar_usuario(datos: UsuarioCreate, db: Session = Depends(get_db)):
     datos.nombre = datos.nombre.strip()
     if not datos.nombre:
         raise HTTPException(status_code=422, detail="Escribe tu nombre.")
-    existente = db.query(Usuario).filter(Usuario.correo == datos.correo).first()
+    existente = db.query(Usuario).filter(func.lower(func.trim(Usuario.correo)) == datos.correo).first()
     if existente:
-        raise HTTPException(status_code=400, detail="Ese correo ya está registrado")
+        raise HTTPException(status_code=409, detail="Ese correo ya está registrado")
 
     usuario = Usuario(
         nombre=datos.nombre,
@@ -36,9 +38,10 @@ def registrar_usuario(datos: UsuarioCreate, db: Session = Depends(get_db)):
 
 @router.post("/login", response_model=TokenResponse)
 def login(datos: LoginRequest, db: Session = Depends(get_db)):
-    usuario = db.query(Usuario).filter(Usuario.correo == datos.correo.lower()).first()
+    login_attempt(datos.correo)
+    usuario = db.query(Usuario).filter(func.lower(func.trim(Usuario.correo)) == datos.correo).first()
     if not usuario or not verify_password(datos.password, usuario.password_hash):
         raise HTTPException(status_code=401, detail="Correo o contraseña incorrectos")
 
-    token = create_access_token({"sub": str(usuario.id), "rol": usuario.rol.value})
+    token = create_access_token({"sub": str(usuario.id), "rol": usuario.rol.value, "version": usuario.auth_version})
     return TokenResponse(access_token=token)

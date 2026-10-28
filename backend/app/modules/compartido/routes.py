@@ -1,3 +1,4 @@
+from app.access import identity
 import re
 from app.modules.compartido.registration_word import build_registration_word, WORD_MIME
 import base64
@@ -30,6 +31,7 @@ from app.models import (
     RegistroInicial,
 )
 from app.schemas.portal import RegistrationInput, AttendanceInput
+from app.schemas.validation import validation_errors
 from app.modules.compartido.services import (
     today,
     has_started,
@@ -92,6 +94,9 @@ def state(db: Session = Depends(get_db), user: Usuario = Depends(get_current_use
         item = serialized(person)
         if not admin(user) and person.id != user.id:
             item.pop("correo", None)
+        if admin(user):
+            from app.access import profile
+            item['perfil'] = profile(db, person)
         users.append(item)
     result = {"users": users, "projects": [], "roles": ROLES,
               "eventTypes": list(db.scalars(select(TipoEvento.nombre).order_by(TipoEvento.nombre))),
@@ -125,8 +130,10 @@ def state(db: Session = Depends(get_db), user: Usuario = Depends(get_current_use
     for slot in result["slots"]:
         slot["reservado"] = UUID(slot["id"]) in booked
     result["initialRegistrations"] = [{**r, "archivos": {key: {"name": item["name"]} for key, item in r["archivos"].items()}} for r in result["initialRegistrations"]]
-    result["innovation"] = [{**r["datos"], "id": r["id"], "user": r["user"]} for r in result["innovation"]]
-    return {"data": result, "user": serialized(user), "paymentsMode": "prueba" if settings.demo_payments_enabled else "deshabilitado"}
+    from app.models import EquipoInnovaTec
+    team_links = {p: (t, v) for p, t, v in db.execute(select(EquipoInnovaTec.innovacion_id, EquipoInnovaTec.id, EquipoInnovaTec.version).where(EquipoInnovaTec.innovacion_id.in_([UUID(r['id']) for r in result['innovation']])))}
+    result["innovation"] = [{**r["datos"], "id": r["id"], "user": r["user"], "equipo_id": str(team_links[UUID(r['id'])][0]) if UUID(r['id']) in team_links else None, "equipo_version": team_links[UUID(r['id'])][1] if UUID(r['id']) in team_links else None} for r in result["innovation"]]
+    return {"data": result, "user": identity(db, user), "paymentsMode": "prueba" if settings.demo_payments_enabled else "deshabilitado"}
 
 
 
@@ -138,7 +145,7 @@ def save(collection: str, key: UUID, payload: dict,
     try:
         values = SCHEMAS[collection].model_validate(payload).model_dump()
     except ValidationError as error:
-        fail("; ".join(f"{'.'.join(map(str, e['loc']))}: {e['msg']}" for e in error.errors()), 422)
+        fail(validation_errors(error.errors()), 422)
     row = db.scalar(select(MODELS[collection]).where(MODELS[collection].id == key).with_for_update())
     new = row is None
 

@@ -132,7 +132,16 @@ class AtencionInput(EvidenciaInput):
     responsable_id: UUID
     fecha_revision: date
     resultado: str = Field(default='', max_length=3000)
-    siguiente_accion: str = Field(default='', max_length=3000)
+    siguiente_accion: str = Field(min_length=1, max_length=3000)
+    evidencia_esperada: str = Field(min_length=1, max_length=1000)
+
+    @field_validator('siguiente_accion', 'evidencia_esperada')
+    @classmethod
+    def required_followup(cls, value):
+        value = value.strip()
+        if not value:
+            raise ValueError('Registra la siguiente acción y la evidencia esperada.')
+        return value
 
     @field_validator('fecha_revision', mode='before')
     @classmethod

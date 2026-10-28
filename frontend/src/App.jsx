@@ -37,6 +37,9 @@ const Dossier = lazyPage(() => import('./modules/incubadora/Incubation.jsx'), 'D
 const Followups = lazyPage(() => import('./modules/incubadora/Incubation.jsx'), 'Followups');
 const Indicators = lazyPage(() => import('./modules/incubadora/Incubation.jsx'), 'Indicators');
 const CatalogAdmin = lazyPage(() => import('./modules/incubadora/Incubation.jsx'), 'CatalogAdmin');
+const RouteWorkspace = lazyPage(() => import('./modules/incubadora/RouteWorkspace.jsx'), 'default');
+const RouteDashboard = lazyPage(() => import('./modules/incubadora/RouteWorkspace.jsx'), 'RouteDashboard');
+const RouteSettings = lazyPage(() => import('./modules/incubadora/RouteWorkspace.jsx'), 'RouteSettings');
 const PublicSurveys = lazyPage(() => import('./modules/encuestas/Surveys.jsx'), 'PublicSurveys');
 const SurveyAdmin = lazyPage(() => import('./modules/encuestas/Surveys.jsx'), 'SurveyAdmin');
 
@@ -88,6 +91,10 @@ function portalRoutes(role, preview) {
     {role === 'admin' && <Route path="innovatec/seguimiento" element={<Teams seguimiento />} />}
     {role === 'admin' && <Route path="catalogo" element={<CatalogAdmin />} />}
     {role === 'admin' && <Route path="catalogo/hitos" element={<CatalogAdmin hitos />} />}
+    {role === 'admin' && <Route path="catalogo/ruta" element={<RouteSettings />} />}
+    {role === 'admin' && <Route path="seguimiento/ruta" element={<RouteDashboard />} />}
+    {role === 'admin' && <Route path="seguimiento/:id/ruta" element={<RouteWorkspace />} />}
+    {role === 'estudiante' && <Route path="proyectos/:id/ruta" element={<RouteWorkspace />} />}
     {role === 'admin' && <Route path="reportes/indicadores" element={<Indicators />} />}
     {role === 'admin' && <Route path="encuestas" element={<SurveyAdmin />} />}
     {role === 'admin' && <Route path="encuestas/resultados" element={<SurveyAdmin results />} />}

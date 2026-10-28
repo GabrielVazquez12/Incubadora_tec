@@ -11,6 +11,7 @@ from app.modules.compartido import newsletter
 from app.modules.compartido import editorial_media
 from app.modules.innovacion import routes as innovatec
 from app.modules.incubadora import routes as incubation
+from app.modules.incubadora import workflow as incubation_workflow
 from app.modules.encuestas import routes as surveys
 from app.modules.difusion import routes as outreach
 from app.modules.gobierno import routes as governance
@@ -39,6 +40,7 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(admin.router)
 app.include_router(incubation.router)
+app.include_router(incubation_workflow.router)
 app.include_router(surveys.router)
 app.include_router(outreach.router)
 app.include_router(governance.router)

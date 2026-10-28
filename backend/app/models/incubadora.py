@@ -1,5 +1,5 @@
 """Additive institutional follow-up, referencing the existing project/registration."""
-from sqlalchemy import Column, String, Integer, Date, DateTime, ForeignKey, JSON, Boolean, CheckConstraint, func
+from sqlalchemy import Column, String, Integer, Date, DateTime, ForeignKey, JSON, Boolean, CheckConstraint, Numeric, func
 from sqlalchemy.dialects.postgresql import UUID
 from app.database import Base
 from app.models.portal import Identified
@@ -7,9 +7,12 @@ from app.models.portal import Identified
 
 class ConfiguracionIncubadora(Base):
     __tablename__ = 'configuracion_incubadora'
-    __table_args__ = (CheckConstraint('id = 1', name='ck_inc_config_singleton'), CheckConstraint('dias_inactividad IS NULL OR dias_inactividad BETWEEN 1 AND 3650', name='ck_inc_inactividad'),)
+    __table_args__ = (CheckConstraint('id = 1', name='ck_inc_config_singleton'), CheckConstraint('dias_inactividad IS NULL OR dias_inactividad BETWEEN 1 AND 3650', name='ck_inc_inactividad'), CheckConstraint('margen_minimo BETWEEN 0 AND 100', name='ck_inc_margen'), CheckConstraint('meses_recuperacion_max BETWEEN 1 AND 600', name='ck_inc_recuperacion'),)
     id = Column(Integer, primary_key=True, default=1)
     dias_inactividad = Column(Integer)
+    margen_minimo = Column(Numeric(5, 2), nullable=False, default=10, server_default='10')
+    meses_recuperacion_max = Column(Integer, nullable=False, default=36, server_default='36')
+    plantillas_ruta = Column(JSON, nullable=False, default=dict, server_default='{}')
     aviso_privacidad = Column(String(20000), nullable=False, default='', server_default='')
     aviso_aprobado = Column(Boolean, nullable=False, default=False, server_default='false')
     version = Column(Integer, nullable=False, default=1, server_default='1')
@@ -85,6 +88,7 @@ class AtencionIncubadora(Identified, Base):
     evidencia_url = Column(String(2000), nullable=False, default='', server_default='')
     resultado = Column(String(3000), nullable=False, default='', server_default='')
     siguiente_accion = Column(String(3000), nullable=False, default='', server_default='')
+    evidencia_esperada = Column(String(1000), nullable=False, default='', server_default='')
     registrado_por = Column(UUID(as_uuid=True), ForeignKey('usuarios.id'), nullable=False)
     creado_en = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
@@ -114,3 +118,93 @@ class CanalizacionIncubadora(Identified, Base):
     resultado = Column(String(3000), nullable=False, default='', server_default='')
     version = Column(Integer, nullable=False, default=1, server_default='1')
     historial = Column(JSON, nullable=False, default=list, server_default='[]')
+
+
+class RutaEmprendedora(Base):
+    """Current route state; each mutation keeps the previous snapshot in historial."""
+    __tablename__ = 'rutas_emprendedoras'
+    __table_args__ = (
+        CheckConstraint("estado IN ('Registrado','Diagnóstico','Revisión económica','En desarrollo','En validación','En validación tecnológica','En formalización','En operación','Canalizado','Pausado','Abandonado','Concluido')", name='ck_ruta_estado'),
+        CheckConstraint("tipo_proyecto IS NULL OR tipo_proyecto IN ('normal','tecnologica','no_seguro')", name='ck_ruta_tipo'),
+    )
+    proyecto_id = Column(UUID(as_uuid=True), ForeignKey('proyectos.id', ondelete='CASCADE'), primary_key=True)
+    tipo_proyecto = Column(String(20))
+    tipo_propuesto = Column(String(20))
+    clasificacion_confirmada = Column(Boolean, nullable=False, default=False, server_default='false')
+    respuestas_clasificacion = Column(JSON, nullable=False, default=dict, server_default='{}')
+    razon_clasificacion = Column(String(3000), nullable=False, default='', server_default='')
+    datos = Column(JSON, nullable=False, default=dict, server_default='{}')
+    pasos = Column(JSON, nullable=False, default=dict, server_default='{}')
+    formalizacion = Column(JSON, nullable=False, default=dict, server_default='{}')
+    estado = Column(String(40), nullable=False, default='Registrado', server_default='Registrado')
+    version = Column(Integer, nullable=False, default=0, server_default='0')
+    historial = Column(JSON, nullable=False, default=list, server_default='[]')
+    actualizado_en = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+
+
+class CalculoEconomico(Identified, Base):
+    __tablename__ = 'calculos_economicos'
+    __table_args__ = (
+        CheckConstraint('version >= 1', name='ck_calculo_version'),
+        CheckConstraint("semaforo IN ('rojo','amarillo','verde')", name='ck_calculo_semaforo'),
+    )
+    proyecto_id = Column(UUID(as_uuid=True), ForeignKey('proyectos.id', ondelete='CASCADE'), nullable=False, index=True)
+    version = Column(Integer, nullable=False)
+    entradas = Column(JSON, nullable=False)
+    resultados = Column(JSON, nullable=False)
+    semaforo = Column(String(12), nullable=False)
+    creado_por = Column(UUID(as_uuid=True), ForeignKey('usuarios.id'), nullable=False)
+    creado_en = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class TareaRutaEmprendedora(Identified, Base):
+    __tablename__ = 'tareas_ruta_emprendedora'
+    __table_args__ = (
+        CheckConstraint("estado IN ('Pendiente','En proceso','Completada','Cancelada')", name='ck_tarea_ruta_estado'),
+        CheckConstraint("estado_evidencia IN ('No enviada','Pendiente de revisión','Aprobada','Corrección requerida')", name='ck_tarea_ruta_evidencia'),
+    )
+    proyecto_id = Column(UUID(as_uuid=True), ForeignKey('proyectos.id', ondelete='CASCADE'), nullable=False, index=True)
+    paso_codigo = Column(String(12), nullable=False, default='', server_default='')
+    nombre = Column(String(160), nullable=False)
+    descripcion = Column(String(3000), nullable=False, default='', server_default='')
+    responsable_id = Column(UUID(as_uuid=True), ForeignKey('usuarios.id'), nullable=False, index=True)
+    fecha_objetivo = Column(Date, nullable=False, index=True)
+    evidencia_esperada = Column(String(1000), nullable=False)
+    estado = Column(String(20), nullable=False, default='Pendiente', server_default='Pendiente')
+    evidencia_texto = Column(String(3000), nullable=False, default='', server_default='')
+    evidencia_url = Column(String(2000), nullable=False, default='', server_default='')
+    documento_id = Column(UUID(as_uuid=True), ForeignKey('documentos.id'))
+    estado_evidencia = Column(String(30), nullable=False, default='No enviada', server_default='No enviada')
+    revision_notas = Column(String(3000), nullable=False, default='', server_default='')
+    revisado_por = Column(UUID(as_uuid=True), ForeignKey('usuarios.id'))
+    version = Column(Integer, nullable=False, default=0, server_default='0')
+    historial = Column(JSON, nullable=False, default=list, server_default='[]')
+    creado_por = Column(UUID(as_uuid=True), ForeignKey('usuarios.id'), nullable=False)
+    creado_en = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class CanalizacionRutaEmprendedora(Identified, Base):
+    __tablename__ = 'canalizaciones_ruta_emprendedora'
+    __table_args__ = (
+        CheckConstraint("estado IN ('Abierta','Cerrada','Cancelada')", name='ck_canalizacion_ruta_estado'),
+        CheckConstraint("estado != 'Cerrada' OR (length(btrim(resultado)) > 0 AND length(btrim(siguiente_accion)) > 0)", name='ck_canalizacion_ruta_cierre'),
+        CheckConstraint("estado != 'Cancelada' OR length(btrim(motivo_cancelacion)) > 0", name='ck_canalizacion_ruta_cancelacion'),
+    )
+    proyecto_id = Column(UUID(as_uuid=True), ForeignKey('proyectos.id', ondelete='CASCADE'), nullable=False, index=True)
+    paso_codigo = Column(String(12), nullable=False, default='', server_default='')
+    necesidad = Column(String(1000), nullable=False)
+    motivo = Column(String(3000), nullable=False)
+    destino = Column(String(300), nullable=False)
+    informacion_usuario = Column(String(3000), nullable=False)
+    resultado_esperado = Column(String(2000), nullable=False)
+    fecha_objetivo = Column(Date, nullable=False, index=True)
+    evidencia_url = Column(String(2000), nullable=False, default='', server_default='')
+    documento_id = Column(UUID(as_uuid=True), ForeignKey('documentos.id'))
+    resultado = Column(String(3000), nullable=False, default='', server_default='')
+    siguiente_accion = Column(String(3000), nullable=False, default='', server_default='')
+    motivo_cancelacion = Column(String(3000), nullable=False, default='', server_default='')
+    estado = Column(String(20), nullable=False, default='Abierta', server_default='Abierta')
+    version = Column(Integer, nullable=False, default=0, server_default='0')
+    historial = Column(JSON, nullable=False, default=list, server_default='[]')
+    creado_por = Column(UUID(as_uuid=True), ForeignKey('usuarios.id'), nullable=False)
+    creado_en = Column(DateTime(timezone=True), nullable=False, server_default=func.now())

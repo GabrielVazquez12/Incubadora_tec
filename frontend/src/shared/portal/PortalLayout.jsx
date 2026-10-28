@@ -88,6 +88,7 @@ export default function PortalLayout({
             ["seguimiento/semana", "Seguimientos de la semana"],
             ["seguimiento/vencidos", "Seguimientos vencidos"],
             ["seguimiento/inactivos", "Inactivos"],
+            ["seguimiento/ruta", "Ruta emprendedora"],
           ],
         }
       : {};
@@ -116,6 +117,7 @@ export default function PortalLayout({
         [
           ["catalogo", "Servicios"],
           ["catalogo/hitos", "Hitos"],
+          ["catalogo/ruta", "Configuración de ruta"],
         ],
       ],
       [

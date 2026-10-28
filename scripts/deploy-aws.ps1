@@ -153,6 +153,7 @@ if ($Stage -eq 'Migrate') {
     if ($service.status -ne 'ACTIVE' -or $service.runningCount -lt 1) {
         throw 'CloudFormation completed, but no web task is running.'
     }
+    
     $endpoint = $application.Endpoint
     if ($endpoint -notmatch '^https://') { $endpoint = 'https://' + $endpoint }
     $health = Invoke-RestMethod ($endpoint.TrimEnd('/') + '/health') -TimeoutSec 30

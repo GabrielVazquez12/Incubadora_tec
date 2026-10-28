@@ -15,15 +15,15 @@ Si un correo demo ya pertenece a otra cuenta, cancela toda la carga.
 
 Todas las cuentas nuevas usan la contraseña **DemoTec2026!**:
 
-| Correo | Rol | Escenario |
-|---|---|---|
-| admin.demo@example.com | admin | Coordinadora |
-| ana.demo@example.com | estudiante | EcoPack en revisión, integrante de AgroSensor |
-| luis.demo@example.com | estudiante | AquaSmart en incubación, integrante de EcoPack |
-| maria.demo@example.com | estudiante | SolarTec en incubación, integrante de AquaSmart |
-| pedro.demo@example.com | estudiante | AgroSensor completado, integrante de SolarTec |
-| sofia.demo@example.com | estudiante | Sin proyecto |
-| externo.demo@example.com | externo | Acceso externo |
+| Correo                   | Rol        | Escenario                                        |
+| ------------------------ | ---------- | ------------------------------------------------ |
+| admin.demo@example.com   | admin      | Coordinadora                                     |
+| ana.demo@example.com     | estudiante | EcoPack en revisión, integrante de AgroSensor   |
+| luis.demo@example.com    | estudiante | AquaSmart en incubación, integrante de EcoPack  |
+| maria.demo@example.com   | estudiante | SolarTec en incubación, integrante de AquaSmart |
+| pedro.demo@example.com   | estudiante | AgroSensor completado, integrante de SolarTec    |
+| sofia.demo@example.com   | estudiante | Sin proyecto                                     |
+| externo.demo@example.com | externo    | Acceso externo                                   |
 
 En una base migrada sin estos datos se agregan 7 usuarios, 4 proyectos, 8 integrantes,
 4 documentos, 8 entradas de historial, 4 tareas, 4 avances, 2 eventos y 2 horarios

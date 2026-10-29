@@ -340,3 +340,21 @@ flujo del portal, alertas y respaldos se registran en `docs/operacion-aws.md`.
   ni se creó una cuenta administradora en AWS. Los pagos demo están desactivados.
 - Ambas plantillas pasan cfn-lint; scripts PowerShell sin errores de sintaxis.
   El despliegue ahora exige una tarea activa y salud HTTPS antes de informar éxito.
+
+### Publicación de Ruta Emprendedora — 28 de octubre de 2026
+
+- Código promovido a `main`: commit `5847e20` (`feat: add entrepreneurial
+  route workflow`). La misma versión está en `feature/kike` (`e0e625e`).
+- Imagen ECR: `release-20261028-e0e625e`, digest
+  `sha256:2bdaff4642519626d86a6bb0f5c328f76c428a7b1f6c73e2bf7fb4a812217b8f`.
+- Migración `8dbfe91a22c4` aplicada mediante una revisión separada de la tarea
+  ECS de migración (`:2`); terminó con código cero antes de actualizar el servicio.
+- CloudFormation `incubadora-application`: `UPDATE_COMPLETE`. El servicio web
+  quedó estable en la revisión ECS `:18`, con una tarea activa y cero pendientes.
+  El rollout canary completó la ventana de observación; la alarma de rollback
+  quedó `OK`. La definición de tarea de migración y el servicio fueron los únicos
+  recursos del change set.
+- HTTPS: `/` y `/api/openapi.json` respondieron `200`; `/health` y `/api/health`
+  respondieron `ok`. OpenAPI expone los endpoints de Ruta Emprendedora.
+- Antes de publicar, el bundle frontend pasó `npm run build`; la API se importó
+  con 122 rutas y pasaron cinco pruebas unitarias económicas y condicionales.
